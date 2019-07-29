@@ -24,7 +24,7 @@
 "use strict";
 
 var FontScale = require('../fontscale');
-var monaco = require('../monaco');
+var monaco = require('monaco-editor');
 var _ = require('underscore');
 var $ = require('jquery');
 var ga = require('../analytics');
@@ -184,7 +184,8 @@ Ast.prototype.onSettingsChange = function (newSettings) {
         contextmenu: newSettings.useCustomContextMenu,
         minimap: {
             enabled: newSettings.showMinimap
-        }
+        },
+        fontFamily: newSettings.editorsFFont
     });
 };
 

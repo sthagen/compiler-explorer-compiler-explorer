@@ -1,4 +1,4 @@
-// Copyright (c) 2018, Compiler Explorer Team
+// Copyright (c) 2018, Compiler Explorer Authors
 // All rights reserved.
 //
 // Redistribution and use in source and binary forms, with or without
@@ -22,6 +22,7 @@
 // ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 // POSSIBILITY OF SUCH DAMAGE.
 "use strict";
+var monaco = require('monaco-editor');
 
 function definition() {
     return {
@@ -78,7 +79,7 @@ function definition() {
                 [/[ \t\r\n]+/, 'white'],
                 [/\/\*/, 'comment', '@comment'],
                 [/\/\/.*$/, 'comment']
-            ],
+            ]
         }
     };
 }

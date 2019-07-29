@@ -194,6 +194,7 @@ Conformance.prototype.addCompilerSelector = function (config) {
         .selectize({
             sortField: [
                 {field: '$order'},
+                {field: '$score'},
                 {field: 'name'}
             ],
             valueField: 'id',
@@ -305,16 +306,18 @@ Conformance.prototype.compileChild = function (child) {
             options: {
                 userArguments: child.find(".options").val() || "",
                 filters: {},
-                compilerOptions: {produceAst: false, produceOptInfo: false}
+                compilerOptions: {produceAst: false, produceOptInfo: false},
+                libraries: []
             }
         };
-        var compiler = this.compilerService.findCompiler(this.langId, picker.val());
-        var includeFlag = compiler ? compiler.includeFlag : '-I';
+
         _.each(this.libsWidget.getLibsInUse(), function (item) {
-            _.each(item.path, function (path) {
-                request.options.userArguments += ' ' + includeFlag + path;
+            request.options.libraries.push({
+                id: item.libId,
+                version: item.versionId
             });
         });
+    
         // This error function ensures that the user will know we had a problem (As we don't save asm)
         this.compilerService.submit(request)
             .then(_.bind(function (x) {

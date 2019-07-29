@@ -1,4 +1,4 @@
-// Copyright (c) 2018, Compiler Explorer Team
+// Copyright (c) 2018, Compiler Explorer Authors
 // All rights reserved.
 //
 // Redistribution and use in source and binary forms, with or without
@@ -50,6 +50,10 @@ const libProps = {
     'libs.fakelib.versions.noPaths.version': 'no paths',
     'libs.fakelib.versions.noPaths.path': ''
 };
+
+if (process.platform === "win32") {
+    libProps['libs.fakelib.versions.twoPaths.path'] = '/dev/null;/dev/urandom';
+}
 
 const compilerProps = new properties.CompilerProps(languages, properties.fakeProps(libProps));
 

@@ -25,7 +25,7 @@
 'use strict';
 
 var FontScale = require('../fontscale');
-var monaco = require('../monaco');
+var monaco = require('monaco-editor');
 var Toggles = require('../toggles');
 require('../modes/gccdump-rtl-gimple-mode');
 var _ = require('underscore');
@@ -297,7 +297,8 @@ GccDump.prototype.onSettingsChange = function (newSettings) {
         contextmenu: newSettings.useCustomContextMenu,
         minimap: {
             enabled: newSettings.showMinimap
-        }
+        },
+        fontFamily: newSettings.editorsFFont
     });
 };
 

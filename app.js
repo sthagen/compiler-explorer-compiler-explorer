@@ -24,6 +24,8 @@
 // ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 // POSSIBILITY OF SUCH DAMAGE.
 
+const startTime = new Date();
+
 // Initialise options and properties. Don't load any handlers here; they
 // may need an initialised properties library.
 const nopt = require('nopt'),
@@ -37,10 +39,11 @@ const nopt = require('nopt'),
     _ = require('underscore'),
     express = require('express'),
     Sentry = require('@sentry/node'),
-    logger = require('./lib/logger').logger,
+    {logger, logToPapertrail, suppressConsoleLog} = require('./lib/logger'),
     webpackDevMiddleware = require("webpack-dev-middleware"),
     utils = require('./lib/utils'),
     clientState = require('./lib/clientstate'),
+    initialiseWine = require('./lib/exec').initialiseWine,
     clientStateGoldenifier = require('./lib/clientstate-normalizer').ClientStateGoldenifier,
     clientStateNormalizer = require('./lib/clientstate-normalizer').ClientStateNormalizer;
 
@@ -64,7 +67,10 @@ const opts = nopt({
     // Do not use caching for compilation results (Requests might still be cached by the client's browser)
     noCache: [Boolean],
     // Don't cleanly run if two or more compilers have clashing ids
-    ensureNoIdClash: [Boolean]
+    ensureNoIdClash: [Boolean],
+    logHost: [String],
+    logPort: [Number],
+    suppressConsoleLog: [Boolean]
 });
 
 if (opts.debug) logger.level = 'debug';
@@ -109,8 +115,18 @@ const defArgs = {
     wantedLanguage: opts.language || null,
     doCache: !opts.noCache,
     fetchCompilersFromRemote: !opts.noRemoteFetch,
-    ensureNoCompilerClash: opts.ensureNoIdClash
+    ensureNoCompilerClash: opts.ensureNoIdClash,
+    suppressConsoleLog: opts.suppressConsoleLog || false
 };
+
+if (opts.logHost && opts.logPort) {
+    logToPapertrail(opts.logHost, opts.logPort, defArgs.env.join("."));
+}
+
+if (defArgs.suppressConsoleLog) {
+    logger.info("Disabling further console logging");
+    suppressConsoleLog();
+}
 
 const webpackConfig = require('./webpack.config.js')[1],
     webpackCompiler = require('webpack')(webpackConfig),
@@ -125,11 +141,11 @@ const isDevMode = () => process.env.NODE_ENV === "DEV";
 const propHierarchy = _.flatten([
     'defaults',
     defArgs.env,
-    _.map(defArgs.env, e => e + '.' + process.platform),
+    _.map(defArgs.env, e => `${e}.${process.platform}`),
     process.platform,
     os.hostname(),
     'local']);
-logger.info("properties hierarchy: " + propHierarchy.join(', '));
+logger.info(`properties hierarchy: ${propHierarchy.join(', ')}`);
 
 // Propagate debug mode if need be
 if (opts.propDebug) props.setDebug(true);
@@ -167,8 +183,10 @@ const compilerProps = new props.CompilerProps(languages, ceProps);
 
 const staticMaxAgeSecs = ceProps('staticMaxAgeSecs', 0);
 const maxUploadSize = ceProps('maxUploadSize', '1mb');
-const extraBodyClass = ceProps('extraBodyClass', '');
+const extraBodyClass = ceProps('extraBodyClass', isDevMode() ? 'dev' : '');
+const storageSolution = compilerProps.ceProps('storageSolution', 'local');
 const httpRoot = ceProps('httpRoot', '/');
+const httpRootDir = httpRoot.endsWith('/') ? httpRoot : (httpRoot + '/');
 
 function staticHeaders(res) {
     if (staticMaxAgeSecs) {
@@ -193,6 +211,7 @@ function getGoldenLayoutFromClientState(state) {
 const awsProps = props.propsFor("aws");
 
 aws.initConfig(awsProps)
+    .then(initialiseWine)
     .then(() => {
         // function to load internal binaries (i.e. lib/source/*.js)
         function loadSources() {
@@ -208,9 +227,9 @@ aws.initConfig(awsProps)
         const CompilationEnvironment = require('./lib/compilation-env');
         const compilationEnvironment = new CompilationEnvironment(compilerProps, defArgs.doCache);
         const CompileHandler = require('./lib/handlers/compile').Handler;
-        const compileHandler = new CompileHandler(compilationEnvironment);
+        const compileHandler = new CompileHandler(compilationEnvironment, awsProps);
         const StorageHandler = require('./lib/storage/storage');
-        const storageHandler = StorageHandler.storageFactory(compilerProps, awsProps);
+        const storageHandler = StorageHandler.storageFactory(storageSolution, compilerProps, awsProps, httpRootDir);
         const ApiHandler = require('./lib/handlers/api').Handler;
         const apiHandler = new ApiHandler(compileHandler, ceProps, storageHandler);
         const SourceHandler = require('./lib/handlers/source').Handler;
@@ -218,13 +237,13 @@ aws.initConfig(awsProps)
         const CompilerFinder = require('./lib/compiler-finder');
         const compilerFinder = new CompilerFinder(compileHandler, compilerProps, awsProps, defArgs,
             clientOptionsHandler);
+        const googleShortUrlResolver = new google.ShortLinkResolver();
 
         function oldGoogleUrlHandler(req, res, next) {
-            const resolver = new google.ShortLinkResolver(aws.getConfig('googleApiKey'));
             const bits = req.url.split("/");
             if (bits.length !== 2 || req.method !== "GET") return next();
-            const googleUrl = `http://goo.gl/${encodeURIComponent(bits[1])}`;
-            resolver.resolve(googleUrl)
+            const googleUrl = `https://goo.gl/${encodeURIComponent(bits[1])}`;
+            googleShortUrlResolver.resolve(googleUrl)
                 .then(resultObj => {
                     const parsed = url.parse(resultObj.longUrl);
                     const allowedRe = new RegExp(ceProps('allowedShortUrlHostRe'));
@@ -233,7 +252,7 @@ aws.initConfig(awsProps)
                         return next();
                     }
                     res.writeHead(301, {
-                        Location: resultObj.id,
+                        Location: resultObj.longUrl,
                         'Cache-Control': 'public'
                     });
                     res.end();
@@ -269,6 +288,7 @@ aws.initConfig(awsProps)
                 _port = defArgs.port;
             }
             logger.info(`  Listening on http://${defArgs.hostname || 'localhost'}:${_port}/`);
+            logger.info(`  Startup duration: ${new Date() - startTime}ms`);
             logger.info("=======================================");
             server.listen(_port, defArgs.hostname);
         }
@@ -294,7 +314,7 @@ aws.initConfig(awsProps)
                         release: gitReleaseName,
                         environment: defArgs.env
                     });
-                    logger.info("Configured with Sentry endpoint", sentryDsn);
+                    logger.info(`Configured with Sentry endpoint ${sentryDsn}`);
                 } else {
                     logger.info("Not configuring sentry");
                 }
@@ -328,17 +348,47 @@ aws.initConfig(awsProps)
                     bodyParser = require('body-parser'),
                     morgan = require('morgan'),
                     compression = require('compression'),
-                    restreamer = require('./lib/restreamer');
+                    router = express.Router(),
+                    healthCheck = require('./lib/handlers/health-check');
+
+                const healthCheckFilePath = ceProps("healthCheckFilePath", false);
+
+                webServer
+                    .set('trust proxy', true)
+                    .set('view engine', 'pug')
+                    .on('error', err => logger.error('Caught error in web handler; continuing:', err))
+                    // Handle healthchecks at the root, as they're not expected from the outside world
+                    .use('/healthcheck', new healthCheck.HealthCheckHandler(healthCheckFilePath).handle)
+                    .use(httpRootDir, router)
+                    .use((req, res, next) => {
+                        next({status: 404, message: `page "${req.path}" could not be found`});
+                    })
+                    .use(Sentry.Handlers.errorHandler)
+                    // eslint-disable-next-line no-unused-vars
+                    .use((err, req, res, next) => {
+                        const status =
+                            err.status ||
+                            err.statusCode ||
+                            err.status_code ||
+                            (err.output && err.output.statusCode) ||
+                            500;
+                        const message = err.message || 'Internal Server Error';
+                        res.status(status);
+                        res.render('error', renderConfig({error: {code: status, message: message}}));
+                    });
 
                 logger.info("=======================================");
                 if (gitReleaseName) logger.info(`  git release ${gitReleaseName}`);
-                const httpRootDir = httpRoot.endsWith('/') ? httpRoot : (httpRoot + '/');
 
                 function renderConfig(extra) {
+                    const extraJson = JSON.stringify(extra);
                     const options = _.extend(extra, clientOptionsHandler.get());
-                    options.compilerExplorerOptions = JSON.stringify(options);
+                    options.optionsHash = clientOptionsHandler.getHash();
+                    options.compilerExplorerOptions = extraJson;
                     options.extraBodyClass = extraBodyClass;
                     options.httpRoot = httpRoot;
+                    options.httpRootDir = httpRootDir;
+                    options.storageSolution = storageSolution;
                     options.require = function (path) {
                         if (isDevMode()) {
                             if (fs.existsSync('static/assets/' + path)) {
@@ -368,7 +418,7 @@ aws.initConfig(awsProps)
                     } else if (userAgent === 'Twitterbot/1.0') {
                         // TODO: Escape to something Twitter likes
                         return line;
-                    } else if (userAgent === 'Slackbot-LinkExpanding 1.0') {
+                    } else if (userAgent.includes('Slackbot-LinkExpanding 1.0')) {
                         // TODO: Escape to something Slack likes
                         return line;
                     }
@@ -386,6 +436,61 @@ aws.initConfig(awsProps)
                     return code;
                 }
 
+                function renderGoldenLayout(config, metadata, res) {
+                    staticHeaders(res);
+                    contentPolicyHeader(res);
+                    res.render('index', renderConfig({
+                        embedded: false,
+                        config: config,
+                        metadata: metadata
+                    }));
+                }
+
+                function renderClientState(clientstate, metadata, res) {
+                    const config = getGoldenLayoutFromClientState(clientstate);
+
+                    renderGoldenLayout(config, metadata, res);
+                }
+
+                function getMetaDataFromLink(req, link, config) {
+                    const metadata = {
+                        ogDescription: null,
+                        ogAuthor: null,
+                        ogTitle: "Compiler Explorer"
+                    };
+
+                    if (link) {
+                        metadata.ogDescription = link.specialMetadata ? link.specialMetadata.description.S : null;
+                        metadata.ogAuthor = link.specialMetadata ? link.specialMetadata.author.S : null;
+                        metadata.ogTitle = link.specialMetadata ? link.specialMetadata.title.S : "Compiler Explorer";
+                    }
+
+                    if (!metadata.ogDescription) {
+                        const sources = utils.glGetMainContents(config.content);
+                        if (sources.editors.length === 1) {
+                            const editor = sources.editors[0];
+                            const lang = languages[editor.language];
+                            if (lang) {
+                                metadata.ogDescription = filterCode(req, editor.source, lang);
+                                metadata.ogTitle += ` - ${lang.name}`;
+                                if (sources.compilers.length === 1) {
+                                    const compilerId = sources.compilers[0].compiler;
+                                    const compiler = apiHandler.compilers.find(c => c.id === compilerId);
+                                    if (compiler) {
+                                        metadata.ogTitle += ` (${compiler.name})`;
+                                    }
+                                }
+                            } else {
+                                metadata.ogDescription = editor.source;
+                            }
+                        }
+                    } else if (metadata.ogAuthor && metadata.ogAuthor !== '.') {
+                        metadata.ogDescription += `\nAuthor(s): ${metadata.ogAuthor}`;
+                    }
+
+                    return metadata;
+                }
+
                 function storedStateHandlerResetLayout(req, res, next) {
                     const id = req.params.id;
                     storageHandler.expandId(id)
@@ -400,42 +505,8 @@ aws.initConfig(awsProps)
                                 config = new clientState.State(config);
                             }
 
-                            config = getGoldenLayoutFromClientState(config);
-
-                            const metadata = {
-                                ogDescription: result.specialMetadata ? result.specialMetadata.description.S : null,
-                                ogAuthor: result.specialMetadata ? result.specialMetadata.author.S : null,
-                                ogTitle: result.specialMetadata ? result.specialMetadata.title.S : "Compiler Explorer"
-                            };
-                            if (!metadata.ogDescription) {
-                                const sources = utils.glGetMainContents(config.content);
-                                if (sources.editors.length === 1) {
-                                    const editor = sources.editors[0];
-                                    const lang = languages[editor.language];
-                                    if (lang) {
-                                        metadata.ogDescription = filterCode(req, editor.source, lang);
-                                        metadata.ogTitle += ` - ${lang.name}`;
-                                        if (sources.compilers.length === 1) {
-                                            const compilerId = sources.compilers[0].compiler;
-                                            const compiler = apiHandler.compilers.find(c => c.id === compilerId);
-                                            if (compiler) {
-                                                metadata.ogTitle += ` (${compiler.name})`;
-                                            }
-                                        }
-                                    } else {
-                                        metadata.ogDescription = editor.source;
-                                    }
-                                }
-                            } else if (metadata.ogAuthor && metadata.ogAuthor !== '.') {
-                                metadata.ogDescription += `\nAuthor(s): ${metadata.ogAuthor}`;
-                            }
-                            staticHeaders(res);
-                            contentPolicyHeader(res);
-                            res.render('index', renderConfig({
-                                embedded: false,
-                                config: config,
-                                metadata: metadata
-                            }));
+                            const metadata = getMetaDataFromLink(req, result, config);
+                            renderClientState(config, metadata, res);
                         })
                         .catch(err => {
                             logger.warn(`Exception thrown when expanding ${id}`);
@@ -447,6 +518,14 @@ aws.initConfig(awsProps)
                         });
                 }
 
+                function unstoredStateHandler(req, res) {
+                    const state = JSON.parse(Buffer.from(req.params.clientstatebase64, 'base64').toString());
+                    const config = getGoldenLayoutFromClientState(new clientState.State(state));
+                    const metadata = getMetaDataFromLink(req, null, config);
+
+                    renderGoldenLayout(config, metadata, res);
+                }
+
                 function storedStateHandler(req, res, next) {
                     const id = req.params.id;
                     storageHandler.expandId(id)
@@ -455,44 +534,18 @@ aws.initConfig(awsProps)
                             if (config.sessions) {
                                 config = getGoldenLayoutFromClientState(new clientState.State(config));
                             }
-                            const metadata = {
-                                ogDescription: result.specialMetadata ? result.specialMetadata.description.S : null,
-                                ogAuthor: result.specialMetadata ? result.specialMetadata.author.S : null,
-                                ogTitle: result.specialMetadata ? result.specialMetadata.title.S : "Compiler Explorer"
-                            };
-                            if (!metadata.ogDescription) {
-                                const sources = utils.glGetMainContents(config.content);
-                                if (sources.editors.length === 1) {
-                                    const editor = sources.editors[0];
-                                    const lang = languages[editor.language];
-                                    if (lang) {
-                                        metadata.ogDescription = filterCode(req, editor.source, lang);
-                                        metadata.ogTitle += ` - ${lang.name}`;
-                                        if (sources.compilers.length === 1) {
-                                            const compilerId = sources.compilers[0].compiler;
-                                            const compiler = apiHandler.compilers.find(c => c.id === compilerId);
-                                            if (compiler) {
-                                                metadata.ogTitle += ` (${compiler.name})`;
-                                            }
-                                        }
-                                    } else {
-                                        metadata.ogDescription = editor.source;
-                                    }
-                                }
-                            } else if (metadata.ogAuthor && metadata.ogAuthor !== '.') {
-                                metadata.ogDescription += `\nAuthor(s): ${metadata.ogAuthor}`;
-                            }
-                            staticHeaders(res);
-                            contentPolicyHeader(res);
-                            res.render('index', renderConfig({
-                                embedded: false,
-                                config: config,
-                                metadata: metadata
-                            }));
+                            const metadata = getMetaDataFromLink(req, result, config);
+                            renderGoldenLayout(config, metadata, res);
+                            // And finally, increment the view count
+                            // If any errors pop up, they are just logged, but the response should still be valid
+                            // It's really  unlikely that it happens as a result of the id not being there though,
+                            // but can be triggered with a missing implementation for a derived storage (s3/local...)
+                            storageHandler.incrementViewCount(id).catch(err => {
+                                logger.error(`Error incrementing view counts for ${id} - ${err}`);
+                            });
                         })
                         .catch(err => {
-                            logger.warn(`Exception thrown when expanding ${id}`);
-                            logger.debug('Exception value:', err);
+                            logger.warn(`Could not expand ${id}: ${err}`);
                             next({
                                 statusCode: 404,
                                 message: `ID "${id}" could not be found`
@@ -505,19 +558,18 @@ aws.initConfig(awsProps)
                     contentPolicyHeader(res);
                     res.render('embed', renderConfig({embedded: true}));
                 };
-                const healthCheck = require('./lib/handlers/health-check');
                 if (isDevMode()) {
-                    webServer.use(webpackDevMiddleware(webpackCompiler, {
+                    router.use(webpackDevMiddleware(webpackCompiler, {
                         publicPath: webpackConfig.output.publicPath,
                         logger: logger
                     }));
-                    webServer.use(express.static(defArgs.staticDir));
+                    router.use(express.static(defArgs.staticDir));
                     logger.info("  using webpack dev middleware");
                 } else {
                     /* Assume that anything not dev is just production.
                      * This gives sane defaults for anyone who isn't messing with this */
-                    logger.info("  serving static files from '" + defArgs.staticDir + "'");
-                    webServer.use(express.static(defArgs.staticDir, {maxAge: staticMaxAgeSecs * 1000}));
+                    logger.info(`  serving static files from '${defArgs.staticDir}'`);
+                    router.use(express.static(defArgs.staticDir, {maxAge: staticMaxAgeSecs * 1000}));
                 }
 
                 morgan.token('gdpr_ip', req => utils.anonymizeIp(req.ip));
@@ -525,12 +577,11 @@ aws.initConfig(awsProps)
                 // Based on combined format, but: GDPR compliant IP, no timestamp & no unused fields for our usecase
                 const morganFormat = isDevMode() ? 'dev' : ':gdpr_ip ":method :url" :status';
 
-                webServer
+                const shortenerLib = require(`./lib/shortener-${clientOptionsHandler.options.urlShortenService}`);
+                const shortener = shortenerLib({storageHandler});
+
+                router
                     .use(Sentry.Handlers.requestHandler())
-                    .set('trust proxy', true)
-                    .set('view engine', 'pug')
-                    // before morgan so healthchecks aren't logged
-                    .use('/healthcheck', new healthCheck.HealthCheckHandler().handle)
                     .use(morgan(morganFormat, {
                         stream: logger.stream,
                         // Skip for non errors (2xx, 3xx)
@@ -570,43 +621,33 @@ aws.initConfig(awsProps)
                         res.render('sitemap');
                     })
                     .use(sFavicon(path.join(defArgs.staticDir, webpackConfig.output.publicPath, 'favicon.ico')))
+                    .get('/client-options.js', (req, res) => {
+                        staticHeaders(res);
+                        res.set('Content-Type', 'application/javascript');
+                        const options = JSON.stringify(clientOptionsHandler.get());
+                        res.end(`window.compilerExplorerOptions = ${options};`);
+                    })
                     .use(bodyParser.json({limit: ceProps('bodyParserLimit', maxUploadSize)}))
                     .use(bodyParser.text({limit: ceProps('bodyParserLimit', maxUploadSize), type: () => true}))
-                    .use(restreamer())
                     .use('/source', sourceHandler.handle.bind(sourceHandler))
                     .use('/api', apiHandler.handle)
                     .use('/g', oldGoogleUrlHandler)
                     .get('/z/:id', storedStateHandler)
                     .get('/resetlayout/:id', storedStateHandlerResetLayout)
-                    .post('/shortener', storageHandler.handler.bind(storageHandler))
-                    .use((req, res, next) => {
-                        next({status: 404, message: `page "${req.path}" could not be found`});
-                    })
-                    .use(Sentry.Handlers.errorHandler)
-                    // eslint-disable-next-line no-unused-vars
-                    .use((err, req, res, next) => {
-                        const status =
-                            err.status ||
-                            err.statusCode ||
-                            err.status_code ||
-                            (err.output && err.output.statusCode) ||
-                            500;
-                        const message = err.message || 'Internal Server Error';
-                        res.status(status);
-                        res.render('error', renderConfig({error: {code: status, message: message}}));
-                    })
-                    .on('error', err => logger.error('Caught error:', err, "(in web handler; continuing)"));
+                    .get('/clientstate/:clientstatebase64', unstoredStateHandler)
+                    .post('/shortener', shortener);
+
                 if (!defArgs.doCache) {
                     logger.info("  with disabled caching");
                 }
                 startListening(webServer);
             })
             .catch(err => {
-                logger.error("Promise error:", err, "(shutting down)");
+                logger.error("Promise error (shutting down):", err);
                 process.exit(1);
             });
     })
     .catch(err => {
-        logger.error("AWS Init Promise error", err, "(shutting down)");
+        logger.error("AWS Init Promise error (shutting down)", err);
         process.exit(1);
     });

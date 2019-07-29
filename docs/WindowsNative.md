@@ -35,9 +35,8 @@ you can `cd` into the `compiler-explorer` directory,
 then run
 
 ```bat
-npm install yarn
-node_modules\.bin\yarn install
-node_modules\.bin\yarn start
+npm install
+npm start
 ```
 
 Eventually, you'll see something that looks like
@@ -53,8 +52,8 @@ info: =======================================
 Now point your favorite web browser at http://localhost:10240
 and you should be done!
 
-You only have to run `yarn install` the first time;
-every time after that, you should just be able to run `yarn start`.
+You only have to run `npm install` the first time;
+every time after that, you should just be able to run `npm start`.
 
 
 ### Setting up binary mode and execution
@@ -86,12 +85,12 @@ you can find it for download [here](https://sourceforge.net/projects/mingw-w64/)
 
 When you use the installer for MingW-64, make sure you select the right architecture during installation.
 
-When you use the zipped version, after unzipping you will need to add the bin folder to your Windows PATHS environment variable.
+When you use the zipped version, after unzipping you will need to add the bin folder to your Windows PATHS environment variable. Be aware that this PATH needs to be added before any other folders that might contain an objdump. You cannot just point to the .exe as the objdumper without having the proper PATH set, it will not work.
 
 When you have everything installed, you can add to your properties file the following:
 ```
 supportsBinary=true
-objdumper=mingw path/mingw64/x86_64-w64-mingw32/bin/objdump.exe
+objdumper=objdump
 ```
 
 *Note that the 32 bit version of MingW does not support 64 bit binaries.*

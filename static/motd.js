@@ -31,7 +31,7 @@ var $ = require('jquery'),
 function handleMotd(motd, motdNode, subLang, adsEnabled, onHide) {
     if (motd.motd) {
         motdNode.find(".content").html(motd.motd);
-        motdNode.removeClass('hide');
+        motdNode.removeClass('d-none');
         motdNode.find(".close")
             .on('click', function () {
                 motdNode.addClass('d-none');
@@ -73,8 +73,8 @@ function initialise(url, motdNode, defaultLanguage, adsEnabled, onHide) {
         .then(function (res) {
             handleMotd(res, motdNode, defaultLanguage, adsEnabled, onHide);
         })
-        .catch(function (exc) {
-            Sentry.captureException(exc);
+        .catch(function (jqXHR, textStatus, errorThrown) {
+            Sentry.captureMessage("MOTD error for " + url + " - " + textStatus + " - " + errorThrown, "warning");
         });
 }
 

@@ -39,7 +39,7 @@ var shareServices = {
             return "https://twitter.com/intent/tweet?text=" +
                 encodeURIComponent(title) + '&url=' + encodeURIComponent(url) + '&via=CompileExplore';
         },
-        text: ' Tweet'
+        text: 'Tweet'
     },
     reddit: {
         embedValid: false,
@@ -49,7 +49,7 @@ var shareServices = {
             return 'http://www.reddit.com/submit?url=' +
                 encodeURIComponent(url) + '&title=' + encodeURIComponent(title);
         },
-        text: ' Share on Reddit'
+        text: 'Share on Reddit'
     }
 };
 
@@ -90,6 +90,7 @@ function updateShares(container, url) {
         var newElement = baseTemplate.children('a.share-item').clone();
         if (service.logoClass) {
             newElement.prepend($('<span>')
+                .addClass('dropdown-icon')
                 .addClass(service.logoClass)
                 .prop('title', serviceName)
             );
@@ -123,7 +124,8 @@ function initShareButton(getLink, layout, noteNewState) {
         content: html,
         html: true,
         placement: 'bottom',
-        trigger: 'manual'
+        trigger: 'manual',
+        sanitize: false
     }).click(function () {
         getLink.popover('toggle');
     }).on('inserted.bs.popover', function () {
@@ -233,8 +235,11 @@ function getEmbeddedHtml(config, root, isReadOnly) {
 }
 
 function getShortLink(config, root, done) {
+    var useExternalShortener = options.urlShortenService !== 'default';
     var data = JSON.stringify({
-        config: config
+        config: useExternalShortener
+            ? url.serialiseState(config)
+            : config
     });
     $.ajax({
         type: 'POST',
@@ -243,8 +248,8 @@ function getShortLink(config, root, done) {
         contentType: 'application/json',  // Sent
         data: data,
         success: _.bind(function (result) {
-            var newPath = root + 'z/' + result.storedId;
-            done(null, window.location.origin + newPath, newPath, true);
+            var pushState = useExternalShortener ? null : result.url;
+            done(null, result.url, pushState, true);
         }, this),
         error: _.bind(function (err) {
             // Notify the user that we ran into trouble?
