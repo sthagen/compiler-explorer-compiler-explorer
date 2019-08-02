@@ -15,7 +15,7 @@ const staticPath = path.resolve(__dirname, staticRelative);
 const distPath = path.join(staticPath, outputPathRelative);
 const assetPath = path.join(staticPath, "assets");
 const manifestPath = 'manifest.json';  //if you change this, you also need to update it in the app.js
-const outputName = isDev ? 'main.js' : 'bundle.[hash].js';
+const outputName = isDev ? '[name].js' : '[name].[chunkhash].js';
 const cssName = isDev ? '[name].css' : "[name].[contenthash].css";
 const publicPath = isDev ? '/dist/' : 'dist/';
 const manifestPlugin = new ManifestPlugin({
@@ -108,6 +108,7 @@ module.exports = [
             minimize: !isDev,
             minimizer: [new UglifyJsPlugin({
                 parallel: true,
+                sourceMap: true,
                 uglifyOptions: {
                     output: {
                         comments: false,
