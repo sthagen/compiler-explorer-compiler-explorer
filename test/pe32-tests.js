@@ -1,4 +1,4 @@
-// Copyright (c) 2018, Adrian Bibby Walther
+// Copyright (c) 2017, Compiler Explorer Authors
 // All rights reserved.
 //
 // Redistribution and use in source and binary forms, with or without
@@ -22,29 +22,16 @@
 // ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 // POSSIBILITY OF SUCH DAMAGE.
 
-const BaseCompiler = require('../base-compiler'),
-    argumentParsers = require("./argument-parsers");
+const chai = require('chai');
+    should = chai.should(),
+    assert = chai.assert,
+    LabelReconstructor = require('../lib/pe32-support').labelReconstructor,
+    logger = require('../lib/logger').logger;
 
-class LLCCompiler extends BaseCompiler {
-    constructor(info, env) {
-        super(info, env);
-        this.compiler.supportsIntel = true;
-    }
-
-    getSharedLibraryPathsAsArguments() {
-        return [];
-    }
-
-    optionsForFilter(filters, outputFilename) {
-        let options = ['-o', this.filename(outputFilename)];
-        if (filters.intel && !filters.binary) options = options.concat('-x86-asm-syntax=intel');
-        if (filters.binary) options = options.concat('-filetype=obj');
-        return options;
-    }
-
-    getArgumentParser() {
-        return argumentParsers.Clang;
-    }
-}
-
-module.exports = LLCCompiler;
+describe('Basic reconstructions', function () {
+    it('No lines', function () {
+        const lines = [];
+        const reconstructor = new LabelReconstructor(lines, false, false);
+        reconstructor.asmLines.length.should.equal(0);
+    });
+});
