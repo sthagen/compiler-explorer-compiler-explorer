@@ -142,6 +142,7 @@ function setupSettings(root, settings, onChange, subLangId) {
     add(root.find('.enableCommunityAds'), 'enableCommunityAds', true, Checkbox);
     add(root.find('.hoverShowSource'), 'hoverShowSource', true, Checkbox);
     add(root.find('.hoverShowAsmDoc'), 'hoverShowAsmDoc', true, Checkbox);
+
     var themeSelect = root.find('.theme');
 
     var defaultThemeId = themes.default.id;
@@ -226,6 +227,7 @@ function setupSettings(root, settings, onChange, subLangId) {
     add(root.find('.enableCtrlS'), 'enableCtrlS', true, Checkbox);
     add(root.find('.editorsFFont'), 'editorsFFont', 'Consolas, "Liberation Mono", Courier, monospace', Textbox);
     add(root.find('.allowStoreCodeDebug'), 'allowStoreCodeDebug', true, Checkbox);
+    add(root.find('.useVim'), 'useVim', false, Checkbox);
 
     setSettings(settings);
     handleThemes();

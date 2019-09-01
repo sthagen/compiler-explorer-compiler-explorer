@@ -33,6 +33,7 @@ var options = require('../options');
 var Alert = require('../alert');
 var local = require('../local');
 var ga = require('../analytics');
+var monacoVim = require('monaco-vim');
 require('../modes/cppp-mode');
 require('../modes/d-mode');
 require('../modes/ispc-mode');
@@ -49,9 +50,7 @@ require('../modes/ada-mode');
 require('selectize');
 
 var loadSave = new loadSaveLib.LoadSave();
-
 var languages = options.languages;
-
 
 function Editor(hub, state, container) {
     this.id = state.id || hub.nextEditorId();
@@ -100,7 +99,8 @@ function Editor(hub, state, container) {
         folding: true,
         lineNumbersMinChars: options.embedded ? 1 : 3,
         emptySelectionClipboard: true,
-        autoIndent: true
+        autoIndent: true,
+        vimInUse: false
     });
     this.editor.getModel().setEOL(monaco.editor.EndOfLineSequence.LF);
 
@@ -258,12 +258,64 @@ Editor.prototype.initCallbacks = function () {
     }, this));
 
     this.eventHub.on('initialised', this.maybeEmitChange, this);
+
+    $(document).on('keyup.editable', _.bind(function (e) {
+        if (e.target === this.domRoot.find(".monaco-placeholder .inputarea")[0]) {
+            if (e.which === 27) {
+                this.onEscapeKey(e);
+            } else if (e.which === 45) {
+                this.onInsertKey(e);
+            }
+        }
+    }, this));
 };
 
 Editor.prototype.onMouseMove = function (e) {
     if (e !== null && e.target !== null && this.settings.hoverShowSource && e.target.position !== null) {
         this.tryPanesLinkLine(e.target.position.lineNumber, false);
     }
+};
+
+Editor.prototype.onEscapeKey = function () {
+    if (this.editor.vimInUse) {
+        var currentState = monacoVim.VimMode.Vim.maybeInitVimState_(this.vimMode);
+        if (currentState.insertMode) {
+            monacoVim.VimMode.Vim.exitInsertMode(this.vimMode);
+        } else if (currentState.visualMode) {
+            monacoVim.VimMode.Vim.exitVisualMode(this.vimMode, false);
+        }
+    }
+};
+
+Editor.prototype.onInsertKey = function (event) {
+    if (this.editor.vimInUse) {
+        var currentState = monacoVim.VimMode.Vim.maybeInitVimState_(this.vimMode);
+        if (!currentState.insertMode) {
+            var insertEvent = {};
+            insertEvent.preventDefault = event.preventDefault;
+            insertEvent.stopPropagation = event.stopPropagation;
+            insertEvent.browserEvent = {};
+            insertEvent.browserEvent.key = 'i';
+            insertEvent.browserEvent.defaultPrevented = false;
+            insertEvent.keyCode = 39;
+            this.vimMode.handleKeyDown(insertEvent);
+        }
+    }
+};
+
+Editor.prototype.enableVim = function () {
+    this.vimMode = monacoVim.initVimMode(this.editor, this.domRoot.find('#v-status')[0]);
+    var vFlag = this.domRoot.find('#vim-flag');
+    vFlag.prop("class", "btn btn-info");
+    this.editor.vimInUse = true;
+};
+
+Editor.prototype.disableVim = function () {
+    this.vimMode.dispose();
+    this.domRoot.find('#v-status').html("");
+    var vFlag = this.domRoot.find('#vim-flag');
+    vFlag.prop("class", "btn btn-light");
+    this.editor.vimInUse = false;
 };
 
 Editor.prototype.initButtons = function (state) {
@@ -283,10 +335,18 @@ Editor.prototype.initButtons = function (state) {
     var addExecutorButton = this.domRoot.find('.btn.add-executor');
     this.conformanceViewerButton = this.domRoot.find('.btn.conformance');
     var addEditorButton = this.domRoot.find('.btn.add-editor');
-
+    var toggleVimButton = this.domRoot.find('#vim-flag');
     var togglePaneAdder = function () {
         paneAdderDropdown.dropdown('toggle');
     };
+    var toggleVim = function () {
+        if (this.editor.vimInUse) {
+            this.disableVim();
+        } else {
+            this.enableVim();
+        }
+    };
+    toggleVimButton.on('click', _.bind(toggleVim, this));
 
     // NB a new compilerConfig needs to be created every time; else the state is shared
     // between all compilers created this way. That leads to some nasty-to-find state
@@ -348,6 +408,7 @@ Editor.prototype.initButtons = function (state) {
     this.cppInsightsButton.on('mousedown', _.bind(function () {
         this.updateOpenInCppInsights();
     }, this));
+
 };
 
 Editor.prototype.updateButtons = function () {
@@ -537,7 +598,7 @@ Editor.prototype.formatCurrentText = function () {
 
 Editor.prototype.resize = function () {
     var topBarHeight = this.updateAndCalcTopBarHeight();
-    //var topBarHeight = this.topBar.outerHeight(true) || 0;
+
     this.editor.layout({
         width: this.domRoot.width(),
         height: this.domRoot.height() - topBarHeight
@@ -552,20 +613,26 @@ Editor.prototype.resize = function () {
 
 Editor.prototype.updateAndCalcTopBarHeight = function () {
     var width = this.domRoot.width();
-    if (width === this.cachedTopBarHeightAtWidth) {
+    if (width === this.cachedTopBarHeightAtWidth && !this.topBar.hasClass("d-none")) {
         return this.cachedTopBarHeight;
     }
-    // If we save vertical space by hiding stuff that's OK to hide
-    // when thin, then hide that stuff.
-    this.hideable.show();
-    var topBarHeightMax = this.topBar.outerHeight(true);
-    this.hideable.hide();
-    var topBarHeightMin = this.topBar.outerHeight(true);
-    var topBarHeight = topBarHeightMin;
-    if (topBarHeightMin === topBarHeightMax) {
+
+    var topBarHeight = 0;
+    var topBarHeightMax = 0;
+    var topBarHeightMin = 0;
+
+    if (!this.topBar.hasClass("d-none")) {
         this.hideable.show();
-        topBarHeight = topBarHeightMax;
+        topBarHeightMax = this.topBar.outerHeight(true);
+        this.hideable.hide();
+        topBarHeightMin = this.topBar.outerHeight(true);
+        topBarHeight = topBarHeightMin;
+        if (topBarHeightMin === topBarHeightMax) {
+            this.hideable.show();
+            topBarHeight = topBarHeightMax;
+        }
     }
+
     this.cachedTopBarHeight = topBarHeight;
     this.cachedTopBarHeightAtWidth = width;
     return topBarHeight;
@@ -578,6 +645,7 @@ Editor.prototype.onSettingsChange = function (newSettings) {
 
     this.editor.updateOptions({
         autoClosingBrackets: this.settings.autoCloseBrackets,
+        useVim: this.settings.useVim,
         tabSize: this.settings.tabWidth,
         quickSuggestions: this.settings.showQuickSuggestions,
         contextmenu: this.settings.useCustomContextMenu,
@@ -596,6 +664,10 @@ Editor.prototype.onSettingsChange = function (newSettings) {
 
     if (before.hoverShowSource && !after.hoverShowSource) {
         this.onEditorSetDecoration(this.id, -1, false);
+    }
+
+    if (after.useVim && !this.vimMode) {
+        this.enableVim();
     }
 
     this.numberUsedLines();
