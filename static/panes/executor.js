@@ -127,6 +127,7 @@ Executor.prototype.initLangAndCompiler = function (state) {
     var result = this.compilerService.processFromLangAndCompiler(langId, compilerId);
     this.compiler = result.compiler;
     this.currentLangId = result.langId;
+    this.updateLibraries();
 };
 
 Executor.prototype.close = function () {
@@ -464,8 +465,13 @@ Executor.prototype.onLibsChanged = function () {
 };
 
 Executor.prototype.initLibraries = function (state) {
-    this.libsWidget = new Libraries.Widget(this.currentLangId, this.libsButton,
-        state, _.bind(this.onLibsChanged, this));
+    if (this.compiler) {
+        this.libsWidget = new Libraries.Widget(this.currentLangId, this.compiler.id, this.compiler.libs,
+            this.libsButton, state, _.bind(this.onLibsChanged, this));
+    } else {
+        this.libsWidget = new Libraries.Widget(this.currentLangId, false, false,
+            this.libsButton, state, _.bind(this.onLibsChanged, this));
+    }
 };
 
 Executor.prototype.onFontScale = function () {
@@ -632,6 +638,7 @@ Executor.prototype.updateCompilerUI = function () {
 
 Executor.prototype.onCompilerChange = function (value) {
     this.compiler = this.compilerService.findCompiler(this.currentLangId, value);
+    this.updateLibraries();
     this.saveState();
     this.compile();
     this.updateCompilerUI();
@@ -752,6 +759,10 @@ Executor.prototype.handleCompilationStatus = function (status) {
         .toggleClass('fa-check-circle', status.code !== 4 && status.didExecute);
 };
 
+Executor.prototype.updateLibraries = function () {
+    if (this.libsWidget) this.libsWidget.setNewLangId(this.currentLangId, this.compiler.id, this.compiler.libs);
+};
+
 Executor.prototype.onLanguageChange = function (editorId, newLangId) {
     if (this.sourceEditorId === editorId) {
         var oldLangId = this.currentLangId;
@@ -763,7 +774,6 @@ Executor.prototype.onLanguageChange = function (editorId, newLangId) {
             execArgs: this.executionArguments,
             execStdin: this.executionStdin
         };
-        this.libsWidget.setNewLangId(newLangId);
         var info = this.infoByLang[this.currentLangId] || {};
         this.initLangAndCompiler({lang: newLangId, compiler: info.compiler});
         this.updateCompilersSelector(info);
