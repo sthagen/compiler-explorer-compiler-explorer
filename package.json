@@ -67,7 +67,8 @@
     "vis": "4.20.1",
     "winston": "^3.2.1",
     "winston-papertrail": "^1.0.5",
-    "wolfy87-eventemitter": "^5.2.3"
+    "wolfy87-eventemitter": "^5.2.3",
+    "snyk": "^1.230.5"
   },
   "devDependencies": {
     "aws-sdk-mock": "^1.7.0",
@@ -106,7 +107,10 @@
     "check": "npm run lint && npm run test",
     "dev": "cross-env NODE_ENV=DEV node app.js",
     "start": "npx webpack && cross-env NODE_ENV=LOCAL node app.js",
-    "codecov": "codecov"
+    "codecov": "codecov",
+    "snyk-protect": "snyk protect",
+    "prepublish": "npm run snyk-protect"
   },
-  "license": "BSD-2-Clause"
+  "license": "BSD-2-Clause",
+  "snyk": true
 }
