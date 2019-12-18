@@ -116,7 +116,7 @@ function Compiler(hub, container, state) {
         minimap: {
             maxColumn: 80
         },
-        lineNumbersMinChars: options.embedded ? 1 : 5,
+        lineNumbersMinChars: 1,
         renderIndentGuides: false,
         fontLigatures: this.settings.editorsFLigatures
     });
@@ -196,10 +196,13 @@ Compiler.prototype.initPanerButtons = function () {
     }, this));
 
     var cloneComponent = _.bind(function () {
+        var currentState = this.currentState();
+        // Delete the saved id to force a new one
+        delete currentState.id;
         return {
             type: 'component',
             componentName: 'compiler',
-            componentState: this.currentState()
+            componentState: currentState
         };
     }, this);
     var createOptView = _.bind(function () {
@@ -593,12 +596,14 @@ Compiler.prototype.sendCompile = function (request) {
 
 Compiler.prototype.setNormalMargin = function () {
     this.outputEditor.updateOptions({
-        lineNumbers: true
+        lineNumbers: true,
+        lineNumbersMinChars: 1
     });
 };
 
 Compiler.prototype.setBinaryMargin = function () {
     this.outputEditor.updateOptions({
+        lineNumbersMinChars: 6,
         lineNumbers: _.bind(this.getBinaryForLine, this)
     });
 };
