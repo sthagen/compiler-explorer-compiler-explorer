@@ -67,6 +67,8 @@ function patchOldFilters(filters) {
 
 var languages = options.languages;
 
+// Disable max line count only for the constructor. Turns out, it needs to do quite a lot of things
+// eslint-disable-next-line max-statements
 function Compiler(hub, container, state) {
     this.container = container;
     this.hub = hub;
@@ -106,10 +108,16 @@ function Compiler(hub, container, state) {
 
     this.initButtons(state);
 
+    var monacoDisassembly = "asm";
+    if (languages[this.currentLangId] && languages[this.currentLangId].monacoDisassembly) {
+        // TODO: If languages[this.currentLangId] is not valid, something went wrong. Find out what
+        monacoDisassembly = languages[this.currentLangId].monacoDisassembly;
+    }
+
     this.outputEditor = monaco.editor.create(this.monacoPlaceholder[0], {
         scrollBeyondLastLine: false,
         readOnly: true,
-        language: languages[this.currentLangId].monacoDisassembly || 'asm',
+        language: monacoDisassembly,
         fontFamily: this.settings.editorsFFont,
         glyphMargin: !options.embedded,
         fixedOverflowWidgets: true,
@@ -333,7 +341,7 @@ Compiler.prototype.resize = function () {
 Compiler.prototype.getLabelAtPosition = function (position) {
     var asmLine = this.assembly[position.lineNumber - 1];
     var column = position.column;
-    var labels = asmLine.labels;
+    var labels = asmLine.labels || [];
 
     for (var i = 0; i < labels.length; ++i) {
         if (column >= labels[i].range.startCol &&
