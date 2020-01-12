@@ -131,6 +131,7 @@ const defArgs = {
     hostname: opts.host,
     port: opts.port || 10240,
     gitReleaseName: gitReleaseName,
+    travisBuildNumber: travisBuildNumber,
     wantedLanguage: opts.language || null,
     doCache: !opts.noCache,
     fetchCompilersFromRemote: !opts.noRemoteFetch,
@@ -399,10 +400,11 @@ aws.initConfig(awsProps)
 
                 const sentryDsn = aws.getConfig('sentryDsn');
                 if (sentryDsn) {
+                    const sentryEnv = ceProps("sentryEnvironment");
                     Sentry.init({
                         dsn: sentryDsn,
                         release: travisBuildNumber,
-                        environment: defArgs.env,
+                        environment: sentryEnv,
                         beforeSend(event) {
                             if (event.request
                                 && event.request.data
