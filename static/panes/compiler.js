@@ -140,7 +140,9 @@ function Compiler(hub, container, state) {
         optgroupField: 'group',
         optgroups: this.compilerService.getGroupsInUse(this.currentLangId),
         lockOptgroupOrder: true,
-        options: _.map(this.getCurrentLangCompilers(), _.identity),
+        options: _.filter(this.getCurrentLangCompilers(), function (e) {
+            return !e.hidden || e.id === state.compiler;
+        }),
         items: this.compiler ? [this.compiler.id] : [],
         dropdownParent: 'body',
         closeAfterSelect: true
@@ -1088,9 +1090,9 @@ Compiler.prototype.initToolButtons = function (togglePannerAdder) {
 
     var addTool = _.bind(function (toolName, title) {
         var btn = $("<button class='dropdown-item btn btn-light btn-sm'>");
-        btn.addClass('.view-' + toolName);
+        btn.addClass('view-' + toolName);
         btn.data('toolname', toolName);
-        btn.append("<span class='dropdown-icon fas fa-cog' />" + title);
+        btn.append("<span class='dropdown-icon fas fa-cog'></span>" + title);
         this.toolsMenu.append(btn);
 
         if (toolName !== "none") {
