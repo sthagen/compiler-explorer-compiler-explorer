@@ -39,6 +39,7 @@ var bigInt = require('big-integer');
 var local = require('../local');
 var Libraries = require('../libs-widget');
 var codeLensHandler = require('../codelens-handler');
+var monacoConfig = require('../monaco-config');
 require('../modes/asm-mode');
 require('../modes/ptx-mode');
 
@@ -115,20 +116,13 @@ function Compiler(hub, container, state) {
         monacoDisassembly = languages[this.currentLangId].monacoDisassembly;
     }
 
-    this.outputEditor = monaco.editor.create(this.monacoPlaceholder[0], {
-        scrollBeyondLastLine: false,
+    this.outputEditor = monaco.editor.create(this.monacoPlaceholder[0], monacoConfig.extendConfig({
         readOnly: true,
         language: monacoDisassembly,
-        fontFamily: this.settings.editorsFFont,
         glyphMargin: !options.embedded,
-        fixedOverflowWidgets: true,
-        minimap: {
-            maxColumn: 80,
-        },
-        lineNumbersMinChars: 1,
         renderIndentGuides: false,
-        fontLigatures: this.settings.editorsFLigatures,
-    });
+        vimInUse: false,
+    }, this.settings));
 
     this.fontScale = new FontScale(this.domRoot, state, this.outputEditor);
 
@@ -241,6 +235,20 @@ Compiler.prototype.initPanerButtons = function () {
         return Components.getCfgViewWith(this.id, this.sourceEditorId);
     }, this);
 
+    var createExecutor = _.bind(function () {
+        var editorId = this.sourceEditorId;
+        var langId = this.currentLangId;
+        var compilerId = this.compiler ? this.compiler.id : '';
+        var libs = [];
+        _.each(this.libsWidget.getLibsInUse(), function (item) {
+            libs.push({
+                name: item.libId,
+                ver: item.versionId,
+            });
+        });
+        return Components.getExecutorWith(editorId, langId, compilerId, libs);
+    }, this);
+
     var panerDropdown = this.domRoot.find('.pane-dropdown');
     var togglePannerAdder = function () {
         panerDropdown.dropdown('toggle');
@@ -304,6 +312,16 @@ Compiler.prototype.initPanerButtons = function () {
         var insertPoint = this.hub.findParentRowOrColumn(this.container) ||
             this.container.layoutManager.root.contentItems[0];
         insertPoint.addChild(createCfgView);
+    }, this));
+
+    this.container.layoutManager
+        .createDragSource(this.executorButton, createExecutor)
+        ._dragListener.on('dragStart', togglePannerAdder);
+
+    this.executorButton.click(_.bind(function () {
+        var insertPoint = this.hub.findParentRowOrColumn(this.container) ||
+            this.container.layoutManager.root.contentItems[0];
+        insertPoint.addChild(createExecutor);
     }, this));
 
     this.initToolButtons(togglePannerAdder);
@@ -550,6 +568,8 @@ Compiler.prototype.compile = function (bypassCache, newTools) {
                 pass: this.gccDumpPassSelected,
                 treeDump: this.treeDumpEnabled,
                 rtlDump: this.rtlDumpEnabled,
+                ipaDump: this.ipaDumpEnabled,
+                dumpFlags: this.dumpFlags,
             },
             produceOptInfo: this.wantOptInfo,
             produceCfg: this.cfgViewOpen,
@@ -914,6 +934,19 @@ Compiler.prototype.onGccDumpFiltersChanged = function (id, filters, reqCompile) 
     if (this.id === id) {
         this.treeDumpEnabled = (filters.treeDump !== false);
         this.rtlDumpEnabled = (filters.rtlDump !== false);
+        this.ipaDumpEnabled = (filters.ipaDump !== false);
+        this.dumpFlags = {
+            address: filters.addressOption !== false,
+            slim: filters.slimOption !== false,
+            raw: filters.rawOption !== false,
+            details: filters.detailsOption !== false,
+            stats: filters.statsOption !== false,
+            blocks: filters.blocksOption !== false,
+            vops: filters.vopsOption !== false,
+            lineno: filters.linenoOption !== false,
+            uid: filters.uidOption !== false,
+            all: filters.allOption !== false,
+        };
 
         if (reqCompile) {
             this.compile();
@@ -946,6 +979,8 @@ Compiler.prototype.onGccDumpViewClosed = function (id) {
         delete this.gccDumpPassSelected;
         delete this.treeDumpEnabled;
         delete this.rtlDumpEnabled;
+        delete this.ipaDumpEnabled;
+        delete this.dumpFlags;
     }
 };
 
@@ -981,6 +1016,7 @@ Compiler.prototype.initButtons = function (state) {
     this.irButton = this.domRoot.find('.btn.view-ir');
     this.gccDumpButton = this.domRoot.find('.btn.view-gccdump');
     this.cfgButton = this.domRoot.find('.btn.view-cfg');
+    this.executorButton = this.domRoot.find('.create-executor');
     this.libsButton = this.domRoot.find('.btn.show-libs');
 
     this.compileTimeLabel = this.domRoot.find('.compile-time');
