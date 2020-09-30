@@ -22,15 +22,13 @@
 // ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 // POSSIBILITY OF SUCH DAMAGE.
 
-const chai = require('chai');
-const chaiAsPromised = require('chai-as-promised');
-const OptionsHandler = require('../lib/options-handler');
-const _ = require('underscore');
-const properties = require('../lib/properties');
-const BaseCompiler = require('../lib/base-compiler');
+import _ from 'underscore';
 
-chai.use(chaiAsPromised);
-const should = chai.should();
+import { BaseCompiler } from '../lib/base-compiler';
+import { ClientOptionsHandler } from '../lib/options-handler';
+import * as properties from '../lib/properties';
+
+import { should } from './utils';
 
 const languages = {
     fake: {
@@ -44,6 +42,7 @@ const libProps = {
     'libs.fakelib.description': 'Its is a real, fake lib!',
     'libs.fakelib.versions': 'onePath:twoPaths:noPaths',
     'libs.fakelib.url': 'https://godbolt.org',
+    'libs.fakelib.examples': 'abc:def',
     'libs.fakelib.versions.onePath.version': 'one path',
     'libs.fakelib.versions.onePath.path': '/dev/null',
     'libs.fakelib.versions.onePath.libpath': '/lib/null',
@@ -122,10 +121,10 @@ describe('Options handler', () => {
 
     before(() => {
         compilerProps = new properties.CompilerProps(languages, properties.fakeProps(libProps));
-        optionsHandler = new OptionsHandler([], compilerProps, {env: ['dev']});
+        optionsHandler = new ClientOptionsHandler([], compilerProps, {env: ['dev']});
 
         moreCompilerProps = new properties.CompilerProps(languages, properties.fakeProps(moreLibProps));
-        moreOptionsHandler = new OptionsHandler([], moreCompilerProps, {env: ['dev']});
+        moreOptionsHandler = new ClientOptionsHandler([], moreCompilerProps, {env: ['dev']});
     });
 
     it('should always return an array of paths', () => {
@@ -141,6 +140,7 @@ describe('Options handler', () => {
                 dependencies: [],
                 liblink: [],
                 staticliblink: [],
+                examples: ['abc', 'def'],
                 options: [],
                 versions: {
                     noPaths: {path: [], version: 'no paths', liblink: [], libpath: [], staticliblink: [], dependencies: [], alias: [],
@@ -164,6 +164,7 @@ describe('Options handler', () => {
                 dependencies: [],
                 liblink: [],
                 staticliblink: [],
+                examples: [],
                 options: [],
                 versions: {
                     std: {
@@ -185,6 +186,7 @@ describe('Options handler', () => {
                 dependencies: [],
                 liblink: [],
                 staticliblink: [],
+                examples: [],
                 options: [],
                 versions: {
                     trunk: {
