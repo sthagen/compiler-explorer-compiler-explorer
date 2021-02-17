@@ -64,7 +64,6 @@ import { languages as allLanguages } from './lib/languages';
 import { logger, logToPapertrail, suppressConsoleLog } from './lib/logger';
 import { ClientOptionsHandler } from './lib/options-handler';
 import * as props from './lib/properties';
-import { getShortenerTypeByKey } from './lib/shortener';
 import { sources } from './lib/sources';
 import { loadSponsorsFromString } from './lib/sponsors';
 import { getStorageTypeByKey } from './lib/storage';
@@ -137,14 +136,12 @@ const gitReleaseName = (() => {
     return '';
 })();
 
-const travisBuildNumber = (() => {
-    // Use the canned travis_build only if provided
-    const travisBuildPath = path.join(distPath, 'travis_build');
-    if (opts.dist && fs.existsSync(travisBuildPath)) {
-        return fs.readFileSync(travisBuildPath).toString().trim();
+const releaseBuildNumber = (() => {
+    // Use the canned build only if provided
+    const releaseBuildPath = path.join(distPath, 'release_build');
+    if (opts.dist && fs.existsSync(releaseBuildPath)) {
+        return fs.readFileSync(releaseBuildPath).toString().trim();
     }
-
-    // non-travis build
     return '';
 })();
 
@@ -155,7 +152,7 @@ const defArgs = {
     hostname: opts.host,
     port: opts.port || 10240,
     gitReleaseName: gitReleaseName,
-    travisBuildNumber: travisBuildNumber,
+    releaseBuildNumber: releaseBuildNumber,
     wantedLanguage: opts.language || null,
     doCache: !opts.noCache,
     fetchCompilersFromRemote: !opts.noRemoteFetch,
@@ -406,7 +403,7 @@ function setupSentry(sentryDsn, expressApp) {
     const sentryEnv = ceProps('sentryEnvironment');
     Sentry.init({
         dsn: sentryDsn,
-        release: travisBuildNumber || gitReleaseName,
+        release: releaseBuildNumber || gitReleaseName,
         environment: sentryEnv || defArgs.env[0],
         beforeSend(event) {
             if (event.request
@@ -445,7 +442,7 @@ async function main() {
 
     logger.info('=======================================');
     if (gitReleaseName) logger.info(`  git release ${gitReleaseName}`);
-    if (travisBuildNumber) logger.info(`  travis build ${travisBuildNumber}`);
+    if (releaseBuildNumber) logger.info(`  release build ${releaseBuildNumber}`);
 
     const initialFindResults = await compilerFinder.find();
     const initialCompilers = initialFindResults.compilers;
@@ -632,9 +629,6 @@ async function main() {
     // Based on combined format, but: GDPR compliant IP, no timestamp & no unused fields for our usecase
     const morganFormat = isDevMode() ? 'dev' : ':gdpr_ip ":method :url" :status';
 
-    const shortenerType = getShortenerTypeByKey(clientOptionsHandler.options.urlShortenService);
-    const shortener = new shortenerType(storageHandler);
-
     /*
      * This is a workaround to make cross origin monaco web workers function
      * in spite of the monaco webpack plugin hijacking the MonacoEnvironment global.
@@ -733,7 +727,8 @@ async function main() {
         .use(bodyParser.json({limit: ceProps('bodyParserLimit', maxUploadSize)}))
         .use('/source', sourceHandler.handle.bind(sourceHandler))
         .use('/g', oldGoogleUrlHandler)
-        .post('/shortener', shortener.handle.bind(shortener));
+        // Deprecated old route for this -- TODO remove in late 2021
+        .post('/shortener', routeApi.apiHandler.shortener.handle.bind(routeApi.apiHandler.shortener));
 
     noscriptHandler.InitializeRoutes({limit: ceProps('bodyParserLimit', maxUploadSize)});
     routeApi.InitializeRoutes();
