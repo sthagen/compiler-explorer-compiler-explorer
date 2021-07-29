@@ -111,6 +111,8 @@ function Compiler(hub, container, state) {
     this.linkedFadeTimeoutId = -1;
     this.toolsMenu = null;
 
+    this.revealJumpStack = [];
+
     this.initButtons(state);
 
     var monacoDisassembly = 'asm';
@@ -413,8 +415,9 @@ Compiler.prototype.jumpToLabel = function (position) {
     }
 
     // Highlight the new range.
-    var endLineContent =
-        this.outputEditor.getModel().getLineContent(labelDefLineNum);
+    var endLineContent = this.outputEditor.getModel().getLineContent(labelDefLineNum);
+
+    this.pushRevealJump();
 
     this.outputEditor.setSelection(new monaco.Selection(
         labelDefLineNum, 0,
@@ -422,6 +425,18 @@ Compiler.prototype.jumpToLabel = function (position) {
 
     // Jump to the given line.
     this.outputEditor.revealLineInCenter(labelDefLineNum);
+};
+
+Compiler.prototype.pushRevealJump = function () {
+    this.revealJumpStack.push(this.outputEditor.saveViewState());
+    this.revealJumpStackHasElementsCtxKey.set(true);
+};
+
+Compiler.prototype.popAndRevealJump = function () {
+    if (this.revealJumpStack.length > 0) {
+        this.outputEditor.restoreViewState(this.revealJumpStack.pop());
+        this.revealJumpStackHasElementsCtxKey.set(this.revealJumpStack.length > 0);
+    }
 };
 
 Compiler.prototype.initEditorActions = function () {
@@ -451,6 +466,20 @@ Compiler.prototype.initEditorActions = function () {
         realMethod.apply(contextmenu, arguments);
     }, this);
 
+    this.revealJumpStackHasElementsCtxKey = this.outputEditor.createContextKey('hasRevealJumpStackElements', false);
+
+    this.outputEditor.addAction({
+        id: 'returnfromreveal',
+        label: 'Return from reveal jump',
+        keybindings: [monaco.KeyMod.CtrlCmd | monaco.KeyMod.Shift | monaco.KeyCode.Enter],
+        contextMenuGroupId: 'navigation',
+        contextMenuOrder: 1.4,
+        precondition: 'hasRevealJumpStackElements',
+        run: _.bind(function () {
+            this.popAndRevealJump();
+        }, this),
+    });
+
     this.outputEditor.addAction({
         id: 'viewsource',
         label: 'Scroll to source',
@@ -468,11 +497,14 @@ Compiler.prototype.initEditorActions = function () {
         }, this),
     });
 
+    this.isAsmKeywordCtxKey = this.outputEditor.createContextKey('isAsmKeyword', true);
+
     this.outputEditor.addAction({
         id: 'viewasmdoc',
         label: 'View assembly documentation',
         keybindings: [monaco.KeyMod.CtrlCmd | monaco.KeyCode.F8],
         keybindingContext: null,
+        precondition: 'isAsmKeyword',
         contextMenuGroupId: 'help',
         contextMenuOrder: 1.5,
         run: _.bind(this.onAsmToolTip, this),
@@ -1689,7 +1721,12 @@ Compiler.prototype.onPanesLinkLine = function (compilerId, lineNumber, colBegin,
                 }
             }
         });
-        if (revealLine && lineNums[0]) this.outputEditor.revealLineInCenter(lineNums[0]);
+
+        if (revealLine && lineNums[0]) {
+            this.pushRevealJump();
+            this.outputEditor.revealLineInCenter(lineNums[0]);
+        }
+
         var lineClass = sender !== this.getPaneName() ? 'linked-code-decoration-line' : '';
         var linkedLinesDecoration = _.map(lineNums, function (line) {
             return {
@@ -1724,7 +1761,10 @@ Compiler.prototype.onPanesLinkLine = function (compilerId, lineNumber, colBegin,
 
 Compiler.prototype.onCompilerSetDecorations = function (id, lineNums, revealLine) {
     if (Number(id) === this.id) {
-        if (revealLine && lineNums[0]) this.outputEditor.revealLineInCenter(lineNums[0]);
+        if (revealLine && lineNums[0]) {
+            this.pushRevealJump();
+            this.outputEditor.revealLineInCenter(lineNums[0]);
+        }
         this.decorations.linkedCode = _.map(lineNums, function (line) {
             return {
                 range: new monaco.Range(line, 1, line, 1),
@@ -1872,10 +1912,10 @@ Compiler.prototype.onMouseUp = function (e) {
 
 Compiler.prototype.onMouseMove = function (e) {
     if (e === null || e.target === null || e.target.position === null) return;
-    if (this.settings.hoverShowSource === true && this.assembly) {
-        this.clearLinkedLines();
+    if (this.assembly) {
         var hoverAsm = this.assembly[e.target.position.lineNumber - 1];
-        if (hoverAsm) {
+        if (this.settings.hoverShowSource === true && hoverAsm) {
+            this.clearLinkedLines();
             // We check that we actually have something to show at this point!
             var sourceLine = -1;
             var sourceColBegin = -1;
@@ -1923,36 +1963,39 @@ Compiler.prototype.onMouseMove = function (e) {
             this.updateDecorations();
         }
 
-        if (this.getEffectiveFilters().intel) {
-            var lineTokens = _.bind(function (model, line) {
-                //Force line's state to be accurate
-                if (line > model.getLineCount()) return [];
-                var flavour = model.getModeId();
-                var tokens = monaco.editor.tokenize(model.getLineContent(line), flavour);
-                return tokens.length > 0 ? tokens[0] : [];
-            }, this);
-
-            if (this.settings.hoverShowAsmDoc === true &&
-                _.some(lineTokens(this.outputEditor.getModel(), currentWord.range.startLineNumber), function (t) {
-                    return t.offset + 1 === currentWord.startColumn && t.type === 'keyword.asm';
-                })) {
-                getAsmInfo(currentWord.word, this.compiler.instructionSet).then(_.bind(function (response) {
-                    if (!response) return;
-                    this.decorations.asmToolTip = {
-                        range: currentWord.range,
-                        options: {
-                            isWholeLine: false,
-                            hoverMessage: [{
-                                value: response.tooltip + '\n\nMore information available in the context menu.',
-                                isTrusted: true,
-                            }],
-                        },
-                    };
-                    this.updateDecorations();
-                }, this));
-            }
+        var isCurrentWordAsmKeyword = this.isWordAsmKeyword(currentWord);
+        this.isAsmKeywordCtxKey.set(isCurrentWordAsmKeyword);
+        if (isCurrentWordAsmKeyword && this.settings.hoverShowSource === true) {
+            getAsmInfo(currentWord.word, this.compiler.instructionSet).then(_.bind(function (response) {
+                if (!response) return;
+                this.decorations.asmToolTip = {
+                    range: currentWord.range,
+                    options: {
+                        isWholeLine: false,
+                        hoverMessage: [{
+                            value: response.tooltip + '\n\nMore information available in the context menu.',
+                            isTrusted: true,
+                        }],
+                    },
+                };
+                this.updateDecorations();
+            }, this));
         }
     }
+};
+
+Compiler.prototype.getLineTokens = function (line) {
+    var model = this.outputEditor.getModel();
+    if (!model || line > model.getLineCount()) return [];
+    var flavour = model.getModeId();
+    var tokens = monaco.editor.tokenize(model.getLineContent(line), flavour);
+    return tokens.length > 0 ? tokens[0] : [];
+};
+
+Compiler.prototype.isWordAsmKeyword = function (word) {
+    return _.some(this.getLineTokens(word.range.startLineNumber), function (t) {
+        return t.offset + 1 === word.startColumn && t.type === 'keyword.asm';
+    });
 };
 
 Compiler.prototype.onAsmToolTip = function (ed) {
