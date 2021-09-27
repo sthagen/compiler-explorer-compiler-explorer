@@ -9,6 +9,7 @@
 	"files": [
 		"alert.interfaces.ts",
 		"alert.ts",
+		"formatter-registry.interfaces.ts",
 		"formatter-registry.ts",
 		"global.ts",
 		"lib-utils.ts",
@@ -18,6 +19,7 @@
 		"panes/tree.ts",
 		"panes/pane.ts",
 		"panes/pane.interfaces.ts",
+		"panes/rustmacroexp-view.ts",
 		"panes/rustmir-view.ts",
 		"settings.interfaces.ts",
 		"sharing.ts",
