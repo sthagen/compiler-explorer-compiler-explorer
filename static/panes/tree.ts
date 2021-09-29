@@ -171,7 +171,7 @@ export class Tree {
     }
 
     private getCustomOutputFilename(): string {
-        return this.customOutputFilenameInput.val();
+        return _.escape(this.customOutputFilenameInput.val());
     }
 
     public currentState(): TreeState {
@@ -324,17 +324,17 @@ export class Tree {
 
         item.data('fileId', file.fileId);
         if (file.filename) {
-            item.find('.filename').html(file.filename);
+            item.find('.filename').text(file.filename);
         } else if (file.editorId > 0) {
             const editor = this.hub.getEditorById(file.editorId);
             if (editor) {
-                item.find('.filename').html(editor.getPaneName());
+                item.find('.filename').text(editor.getPaneName());
             } else {
                 // wait for editor to appear first
                 return;
             }
         } else {
-            item.find('.filename').html('Unknown file');
+            item.find('.filename').text('Unknown file');
         }
 
         item.on('click', (e) => {
@@ -352,7 +352,7 @@ export class Tree {
             const fileId = $(e.currentTarget).parent('li').data('fileId');
             const file = this.multifileService.getFileByFileId(fileId);
             if (file) {
-                this.alertSystem.ask('Delete file', `Are you sure you want to delete ${file.filename ? file.filename : 'this file'}?` , {
+                this.alertSystem.ask('Delete file', `Are you sure you want to delete ${file.filename ? _.escape(file.filename) : 'this file'}?` , {
                     yes: () => {
                         this.removeFile(fileId);
                     },
