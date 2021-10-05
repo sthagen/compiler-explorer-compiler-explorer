@@ -22,16 +22,25 @@
 // ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 // POSSIBILITY OF SUCH DAMAGE.
 
-type CompilerExplorerOptions = Record<string, unknown>;
+/**
+ * The color code container
+ */
+export type ColorCodes = Record<number, string>;
 
-declare global {
-    export interface Window {
-        httpRoot: string | null;
-        staticRoot: string | null;
-        compilerExplorerOptions: CompilerExplorerOptions;
-    }
+/**
+ * The Ansi to HTML options
+ */
+export interface AnsiToHtmlOptions {
+    // The foreground color. Defaults to '#FFF'
+    fg?: string;
+    // The background color. Defaults to '#000'
+    bg?: string;
+    // Whether to add a new line. Defaults to false.
+    newline?: boolean;
+    // Whether to escape xml in text. Defaults to false.
+    escapeXML?: boolean;
+    // Whether to use stream mode. Defaults to false.
+    stream?: boolean;
+    // The color codes to use. If not set, this will be generated.
+    colors?: ColorCodes;
 }
-
-// Necessary because we're not exporting any actual symbols from this file
-// See https://www.typescriptlang.org/docs/handbook/declaration-files/templates/global-modifying-module-d-ts.html
-export {};
