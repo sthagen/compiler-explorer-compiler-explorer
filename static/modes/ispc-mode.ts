@@ -24,12 +24,11 @@
 
 'use strict';
 
-var jquery = require('jquery');
 var monaco = require('monaco-editor');
 var cpp = require('monaco-editor/esm/vs/basic-languages/cpp/cpp');
 
 function definition() {
-    var ispc = jquery.extend(true, {}, cpp.language); // deep copy
+    var ispc = $.extend(true, {}, cpp.language); // deep copy
 
     ispc.tokenPostfix = '.ispc';
 
@@ -85,3 +84,5 @@ function definition() {
 monaco.languages.register({id: 'ispc'});
 monaco.languages.setLanguageConfiguration('ispc', cpp.conf);
 monaco.languages.setMonarchTokensProvider('ispc', definition());
+
+export {};

@@ -23,7 +23,6 @@
 // POSSIBILITY OF SUCH DAMAGE.
 
 'use strict';
-var $ = require('jquery');
 var monaco = require('monaco-editor');
 var cpp = require('monaco-editor/esm/vs/basic-languages/cpp/cpp');
 var cppp = require('./cppp-mode');
@@ -66,3 +65,5 @@ function definition() {
 monaco.languages.register({ id: 'cppcircle' });
 monaco.languages.setLanguageConfiguration('cppcircle', cpp.conf);
 monaco.languages.setMonarchTokensProvider('cppcircle', definition());
+
+export {};

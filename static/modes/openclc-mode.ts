@@ -23,7 +23,6 @@
 // POSSIBILITY OF SUCH DAMAGE.
 
 'use strict';
-var $ = require('jquery');
 var monaco = require('monaco-editor');
 var cpp = require('monaco-editor/esm/vs/basic-languages/cpp/cpp');
 var nc = require('./nc-mode');
@@ -97,3 +96,5 @@ function definition() {
 monaco.languages.register({id: 'openclc'});
 monaco.languages.setLanguageConfiguration('openclc', cpp.conf);
 monaco.languages.setMonarchTokensProvider('openclc', definition());
+
+export {};

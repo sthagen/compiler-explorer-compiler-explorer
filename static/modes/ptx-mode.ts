@@ -1,4 +1,4 @@
-// Copyright (c) 2018, Compiler Explorer Authors
+// Copyright (c) 2019, Compiler Explorer Authors
 // All rights reserved.
 //
 // Redistribution and use in source and binary forms, with or without
@@ -23,46 +23,34 @@
 // POSSIBILITY OF SUCH DAMAGE.
 
 'use strict';
+var monaco = require('monaco-editor');
+var asm = require('./asm-mode');
 
-var $ = require('jquery');
+function definition() {
+    var ptx = $.extend(true, {}, asm); // deep copy
 
-function SimpleCook() {
-    this.elem = $('#simplecook');
-    this.elem.hide();
+    // Redefine registers for ptx:
+    // Usually ptx registers are in the form "%[pr][0-9]+", but a bunch of magic registers does not follow
+    // this scheme (see https://docs.nvidia.com/cuda/parallel-thread-execution/index.html#special-registers ).
+    // Thus the register-regex captures everything that starts with a '%'.
+    ptx.registers = /%[a-z0-9_\\.]+/;
 
-    this.onDoConsent = function () {
 
-    };
-    this.onDontConsent = function () {
+    // Redefine whitespaces, as asm interprets strings with a leading '@' as comments.
+    ptx.tokenizer.whitespace = [
+        [/[ \t\r\n]+/, 'white'],
+        [/\/\*/, 'comment', '@comment'],
+        [/\/\/.*$/, 'comment'],
+        [/[#;\\].*$/, 'comment'],
+    ];
 
-    };
-    this.onHide = function () {
+    // Add predicated instructions to the list of root tokens. Search for an opcode next, which is also a root token.
+    ptx.tokenizer.root.push([/@%p[0-9]+/, {token: 'operator', next: '@root'}]);
 
-    };
-    this.elem.find('.cookies').on('click', function () {
-        $('#cookies').trigger('click');
-    });
-    this.elem.find('.cook-do-consent').on('click', this.callDoConsent.bind(this));
-    this.elem.find('.cook-dont-consent').on('click', this.callDontConsent.bind(this));
+    return ptx;
 }
 
-SimpleCook.prototype.show = function () {
-    this.elem.show();
-};
+monaco.languages.register({id: 'ptx'});
+monaco.languages.setMonarchTokensProvider('ptx', definition());
 
-SimpleCook.prototype.hide = function () {
-    this.elem.hide();
-    this.onHide();
-};
-
-SimpleCook.prototype.callDoConsent = function () {
-    this.hide();
-    this.onDoConsent();
-};
-
-SimpleCook.prototype.callDontConsent = function () {
-    this.hide();
-    this.onDontConsent();
-};
-
-module.exports = SimpleCook;
+export {};

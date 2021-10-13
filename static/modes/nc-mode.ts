@@ -23,34 +23,28 @@
 // POSSIBILITY OF SUCH DAMAGE.
 
 'use strict';
-var $ = require('jquery');
 var monaco = require('monaco-editor');
 var cpp = require('monaco-editor/esm/vs/basic-languages/cpp/cpp');
-var cppp = require('./cppp-mode');
 
-// We need to create a new definition for cpp so we can remove invalid keywords
-
+// We need to ensure we use proper keywords for the Monaco Editor matcher. Note how
+// https://github.com/Microsoft/monaco-languages/ lacks, as far as I can tell, proper C support. We cheat and use C++
 function definition() {
-    var cuda = $.extend(true, {}, cppp); // deep copy
-
-    function addKeywords(keywords) {
-        // (Ruben) Done one by one as if you just push them all, Monaco complains that they're not strings, but as
-        // far as I can tell, they indeed are all strings. This somehow fixes it. If you know how to fix it, plz go
-        for (var i = 0; i < keywords.length; ++i) {
-            cuda.keywords.push(keywords[i]);
-        }
-    }
-
-    cuda.tokenPostfix = '.cu';
-
-    // Keywords for CUDA
-    addKeywords([
-        '__host__', '__global__', '__device__', '__shared__', '__noinline__', '__forceinline__', '__restrict__',
-    ]);
-
-    return cuda;
+    var nc = $.extend(true, {}, cpp.language); // deep copy
+    // https://en.cppreference.com/w/c/keyword
+    nc.keywords = ['auto', 'break', 'case', 'char', 'const', 'continue', 'default',
+        'do', 'double', 'else', 'enum', 'extern', 'float', 'for', 'goto', 'if', 'inline',
+        'int', 'long', 'register', 'restrict', 'return', 'short', 'signed', 'sizeof', 'static',
+        'struct', 'switch', 'typedef', 'union', 'unsigned', 'void', 'volatile', 'while',
+        '_Alignas', '_Alignof', '_Atomic', '_Bool', '_Complex', '_Generic', '_Imaginary',
+        '_Noreturn', '_Static_assert', '_Thread_local',
+    ];
+    return nc;
 }
 
-monaco.languages.register({id: 'cuda'});
-monaco.languages.setLanguageConfiguration('cuda', cpp.conf);
-monaco.languages.setMonarchTokensProvider('cuda', definition());
+var def = definition();
+
+monaco.languages.register({id: 'nc'});
+monaco.languages.setLanguageConfiguration('nc', cpp.conf);
+monaco.languages.setMonarchTokensProvider('nc', def);
+
+export = def;

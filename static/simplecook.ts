@@ -22,25 +22,53 @@
 // ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 // POSSIBILITY OF SUCH DAMAGE.
 
-'use strict';
-var $ = require('jquery');
-var monaco = require('monaco-editor');
-var cpp = require('monaco-editor/esm/vs/basic-languages/cpp/cpp');
-var cppp = require('./cppp-mode');
+type SimpleCookieCallback = () => void;
 
-function definition() {
-    var cppx_blue = $.extend(true, {}, cppp); // deep copy
-    cppx_blue.tokenPostfix = '.cppx-blue';
+export class SimpleCook {
+    private onDoConsent: SimpleCookieCallback = () => undefined;
+    private onDontConsent: SimpleCookieCallback = () => undefined;
+    private onHide: SimpleCookieCallback = () => undefined;
+    private readonly elem: JQuery;
 
-    // add the 'type' keyword
-    cppx_blue.keywords.push('type');
+    public constructor() {
+        this.elem = $('#simplecook');
+        this.elem.hide();
 
-    // pick up 'identifier:' as a definition.
-    cppx_blue.tokenizer.root.unshift([/[a-zA-Z_]\w*\s*:/, 'identifier.definition']);
+        this.elem.find('.cookies').on('click', () => {
+            $('#cookies').trigger('click');
+        });
+        this.elem.find('.cook-do-consent').on('click', this.callDoConsent.bind(this));
+        this.elem.find('.cook-dont-consent').on('click', this.callDontConsent.bind(this));
+    }
 
-    return cppx_blue;
+    public show(): void {
+        this.elem.show();
+    };
+
+    public hide(): void {
+        this.elem.hide();
+        this.onHide();
+    };
+
+    public callDoConsent(): void {
+        this.hide();
+        this.onDoConsent();
+    };
+
+    public callDontConsent(): void {
+        this.hide();
+        this.onDontConsent();
+    };
+
+    public setOnDoConsent(callback: SimpleCookieCallback): void {
+        this.onDoConsent = callback;
+    }
+
+    public setOnDontConsent(callback: SimpleCookieCallback): void {
+        this.onDontConsent = callback;
+    }
+
+    public setOnHide(callback: SimpleCookieCallback): void {
+        this.onHide = callback;
+    }
 }
-
-monaco.languages.register({id: 'cppx-blue'});
-monaco.languages.setLanguageConfiguration('cppx-blue', cpp.conf);
-monaco.languages.setMonarchTokensProvider('cppx-blue', definition());
