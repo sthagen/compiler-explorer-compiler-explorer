@@ -22,16 +22,6 @@
 // ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 // POSSIBILITY OF SUCH DAMAGE.
 
-export interface FormatRequestOptions {
-    source: string;
-    formatterId: string;
-    base: string;
-    tabWidth: number;
-    useSpaces: boolean;
-}
-
-export interface FormatResponse {
-    answer: string;
-    exit: number;
-    throw?: true;
+export interface GnatDebugState {
+    gnatDebugOutput: any;
 }
