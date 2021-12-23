@@ -1,7 +1,3 @@
-#!/usr/bin/env node
-// shebang interferes with license header plugin
-/* eslint-disable header/header */
-
 // Copyright (c) 2012, Compiler Explorer Authors
 // All rights reserved.
 //
@@ -295,7 +291,6 @@ async function setupWebPackDevMiddleware(router) {
     const webpackCompiler = webpack(webpackConfig);
     router.use(webpackDevMiddleware(webpackCompiler, {
         publicPath: '/static',
-        logger: logger,
         stats: 'errors-only',
     }));
 
@@ -557,7 +552,7 @@ async function main() {
         metricsServer.get('/metrics', async (req, res) => {
             try {
                 res.set('Content-Type', PromClient.register.contentType);
-                res.end(PromClient.register.metrics());
+                res.end(await PromClient.register.metrics());
             } catch (ex) {
                 res.status(500).end(ex);
             }
