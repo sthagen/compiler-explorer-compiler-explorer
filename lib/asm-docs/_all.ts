@@ -1,4 +1,4 @@
-// Copyright (c) 2022, Compiler Explorer Authors
+// Copyright (c) 2021, Compiler Explorer Authors
 // All rights reserved.
 //
 // Redistribution and use in source and binary forms, with or without
@@ -22,17 +22,8 @@
 // ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 // POSSIBILITY OF SUCH DAMAGE.
 
-export { ClangFormatTool } from './clang-format-tool';
-export { ClangQueryTool } from './clang-query-tool';
-export { ClangTidyTool } from './clang-tidy-tool';
-export { CompilerDropinTool } from './compiler-dropin-tool';
-export { LLVMMcaTool } from './llvm-mca-tool';
-export { MicrosoftAnalysisTool } from './microsoft-analysis-tool';
-export { OSACATool } from './osaca-tool';
-export { PaholeTool } from './pahole-tool';
-export { PvsStudioTool } from './pvs-studio-tool';
-export { ReadElfTool } from './readelf-tool';
-export { RustFmtTool } from './rustfmt-tool';
-export { StringsTool } from './strings-tool';
-export { x86to6502Tool } from './x86to6502-tool';
-export { TestingTool } from './testing-tool';
+export { Amd64DocumentationProvider } from './amd64';
+export { Arm32DocumentationProvider } from './arm32';
+export { AvrDocumentationProvider } from './avr';
+export { JavaDocumentationProvider } from './java';
+export { Mos6502DocumentationProvider } from './mos6502';

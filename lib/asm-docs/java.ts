@@ -1,4 +1,4 @@
-// Copyright (c) 2022, Compiler Explorer Authors
+// Copyright (c) 2021, Compiler Explorer Authors
 // All rights reserved.
 //
 // Redistribution and use in source and binary forms, with or without
@@ -22,17 +22,12 @@
 // ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 // POSSIBILITY OF SUCH DAMAGE.
 
-export { ClangFormatTool } from './clang-format-tool';
-export { ClangQueryTool } from './clang-query-tool';
-export { ClangTidyTool } from './clang-tidy-tool';
-export { CompilerDropinTool } from './compiler-dropin-tool';
-export { LLVMMcaTool } from './llvm-mca-tool';
-export { MicrosoftAnalysisTool } from './microsoft-analysis-tool';
-export { OSACATool } from './osaca-tool';
-export { PaholeTool } from './pahole-tool';
-export { PvsStudioTool } from './pvs-studio-tool';
-export { ReadElfTool } from './readelf-tool';
-export { RustFmtTool } from './rustfmt-tool';
-export { StringsTool } from './strings-tool';
-export { x86to6502Tool } from './x86to6502-tool';
-export { TestingTool } from './testing-tool';
+import { AssemblyInstructionInfo, BaseAssemblyDocumentationProvider } from './base';
+import { getAsmOpcode } from './generated/asm-docs-java';
+
+export class JavaDocumentationProvider extends BaseAssemblyDocumentationProvider {
+    public static get key() { return 'java'; }
+    public override getInstructionInformation(instruction: string): AssemblyInstructionInfo | null {
+        return getAsmOpcode(instruction) || null;
+    }
+}
