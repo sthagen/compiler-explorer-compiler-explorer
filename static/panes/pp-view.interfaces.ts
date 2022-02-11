@@ -1,4 +1,4 @@
-// Copyright (c) 2021, Compiler Explorer Authors
+// Copyright (c) 2022, Compiler Explorer Authors
 // All rights reserved.
 //
 // Redistribution and use in source and binary forms, with or without
@@ -22,36 +22,6 @@
 // ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 // POSSIBILITY OF SUCH DAMAGE.
 
-export function updateAndCalcTopBarHeight(domRoot: JQuery, topBar: JQuery, hideable: JQuery): number {
-    let topBarHeight = 0;
-    let topBarHeightMax = 0;
-    let topBarHeightMin = 0;
-
-    if (!topBar.hasClass('d-none')) {
-        hideable.show();
-        topBarHeightMax = topBar.outerHeight(true);
-        hideable.hide();
-        topBarHeightMin = topBar.outerHeight(true);
-        topBarHeight = topBarHeightMin;
-        if (topBarHeightMin === topBarHeightMax) {
-            hideable.show();
-        }
-    }
-
-    return topBarHeight;
-}
-
-/**
- *  Subscribe and unsuscribe the event listener.
- *
- * @param  {JQuery} element
- * @param  {string} eventName
- * @param  {(event:JQuery.Event)=>void} callback
- * @returns void
- */
-export function toggleEventListener(element: JQuery, eventName: string, callback: (event: JQuery.Event) => void): void {
-    element.on(eventName, (event: JQuery.Event) => {
-        callback(event);
-        element.off(eventName);
-    });
+export interface PPViewState {
+    ppOutput: any;
 }

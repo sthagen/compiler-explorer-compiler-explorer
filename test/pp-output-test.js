@@ -1,4 +1,4 @@
-// Copyright (c) 2021, Compiler Explorer Authors
+// Copyright (c) 2022, Compiler Explorer Authors
 // All rights reserved.
 //
 // Redistribution and use in source and binary forms, with or without
@@ -22,36 +22,39 @@
 // ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 // POSSIBILITY OF SUCH DAMAGE.
 
-export function updateAndCalcTopBarHeight(domRoot: JQuery, topBar: JQuery, hideable: JQuery): number {
-    let topBarHeight = 0;
-    let topBarHeightMax = 0;
-    let topBarHeightMin = 0;
+import * as fs from 'fs';
 
-    if (!topBar.hasClass('d-none')) {
-        hideable.show();
-        topBarHeightMax = topBar.outerHeight(true);
-        hideable.hide();
-        topBarHeightMin = topBar.outerHeight(true);
-        topBarHeight = topBarHeightMin;
-        if (topBarHeightMin === topBarHeightMax) {
-            hideable.show();
+import { BaseCompiler } from '../lib/base-compiler';
+import * as properties from '../lib/properties';
+
+import * as filterTests from './pp-output-cases/filter-tests';
+
+//const makeFakeCompilerInfo = (id: string, lang: string, group: string, semver: string, isSemver: boolean) => {
+const makeFakeCompilerInfo = (id, lang, group, semver, isSemver) => {
+    return {
+        id: id,
+        exe: '/dev/null',
+        name: id,
+        lang: lang,
+        group: group,
+        isSemVer: isSemver,
+        semver: semver,
+        libsArr: [],
+    };
+};
+
+describe('Preprocessor Output Handling', () => {
+    it('correctly filters lines', () => {
+        const compilerInfo = makeFakeCompilerInfo('g82', 'c++', 'cpp', '8.2', true);
+        const env = {
+            ceProps: properties.fakeProps({}),
+            compilerProps: () => {
+            },
+        };
+        const compiler = new BaseCompiler(compilerInfo, env);
+        for(const testCase of filterTests.cases) {
+            const output = compiler.filterPP(testCase.input)[1];
+            output.trim().should.eql(testCase.output.trim());
         }
-    }
-
-    return topBarHeight;
-}
-
-/**
- *  Subscribe and unsuscribe the event listener.
- *
- * @param  {JQuery} element
- * @param  {string} eventName
- * @param  {(event:JQuery.Event)=>void} callback
- * @returns void
- */
-export function toggleEventListener(element: JQuery, eventName: string, callback: (event: JQuery.Event) => void): void {
-    element.on(eventName, (event: JQuery.Event) => {
-        callback(event);
-        element.off(eventName);
     });
-}
+});
