@@ -35,6 +35,7 @@ declare global {
         compilerExplorerFrontendTesting: IFrontendTesting;
         ga: any;
         GoogleAnalyticsObject: any;
+        hasUIBeenReset: boolean;
     }
 }
 

@@ -1,4 +1,4 @@
-// Copyright (c) 2021, Compiler Explorer Authors
+// Copyright (c) 2022, Compiler Explorer Authors
 // All rights reserved.
 //
 // Redistribution and use in source and binary forms, with or without
@@ -22,15 +22,44 @@
 // ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 // POSSIBILITY OF SUCH DAMAGE.
 
-export interface CfgState {
-    id: number;
-    editorid: number | boolean;
-    treeid: number | boolean;
-    selectedFn?: string;
-    pos: any; // vis.Network.Position
-    scale: number;
-    options?: {
-        physics?: boolean;
-        navigation?: boolean;
+import * as local from './local';
+
+const CURRENT_SLIDE_KEY = 'presentationCurrentSlide';
+
+export class Presentation {
+    public currentSlide = parseInt(local.get(CURRENT_SLIDE_KEY, '0'));
+    public originalLocation = window.location.href;
+
+    public constructor(public maxSlides: number) {}
+
+    public first() {
+        this.currentSlide = 0;
+        local.set(CURRENT_SLIDE_KEY, this.currentSlide.toString(10));
+        this.show();
+    }
+
+    public next() {
+        if (this.currentSlide < this.maxSlides - 1) {
+            this.currentSlide++;
+            local.set(CURRENT_SLIDE_KEY, this.currentSlide.toString(10));
+            this.show();
+        }
+    }
+
+    public previous() {
+        if (this.currentSlide > 0) {
+            this.currentSlide--;
+            local.set(CURRENT_SLIDE_KEY, this.currentSlide.toString(10));
+            this.show();
+        }
+    }
+
+    public show() {
+        window.hasUIBeenReset = true;
+        if (window.location.href === this.originalLocation) {
+            window.location.reload();
+        } else {
+            window.location.href = this.originalLocation;
+        }
     }
 }
