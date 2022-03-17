@@ -775,13 +775,19 @@ span.badge.badge-pill {
     margin-left: 2pt;
 }
 
+.theme-light-only, .theme-dark-only {
+    display: none;
+}
+
 html[data-theme=default] {
     @import "themes/default-theme";
+    .theme-light-only { display: inline }
 }
 
 html[data-theme=dark] {
     @import "themes/dark-theme";
     background-color: #333 !important;
+    .theme-dark-only { display: inline }
 }
 
 .socialsharing {
@@ -890,9 +896,7 @@ html[data-theme=dark] {
     bottom: 0;
     right: 14px; // width of monaco scrollbar
     font-size: small;
-    color: #17a2b8;
     border-radius: 0.5rem;
-    background-color: rgba(49, 54, 60, 0.85);
     z-index: 1;
     padding: 5px;
 }
