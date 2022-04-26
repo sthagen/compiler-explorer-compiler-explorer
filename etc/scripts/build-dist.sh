@@ -31,8 +31,9 @@ npm run webpack
 rm -rf node_modules
 npm install --no-audit --production
 
-# Output some magic for GH to set the branch name
+# Output some magic for GH to set the branch name and release name
 echo "::set-output name=branch::${GITHUB_REF#refs/heads/}"
+echo "::set-output name=release_name::${RELEASE_NAME}"
 
 # Run to make sure we haven't just made something that won't work
 node -r esm -r ts-node/register ./app.js --version --dist
@@ -44,11 +45,3 @@ tar -Jcf "out/dist-bin/${RELEASE_FILE_NAME}.tar.xz" -T gh-dist-files.txt
 tar -Jcf "out/dist-bin/${RELEASE_FILE_NAME}.static.tar.xz" --transform="s,^out/dist/static/,," out/dist/static/*
 echo "${HASH}" >"out/dist-bin/${RELEASE_FILE_NAME}.txt"
 du -ch out/**/*
-
-# Create and set commits for a sentry release if and only if we have the secure token set
-# External GitHub PRs etc won't have the variable set.
-if [ -n "${SENTRY_AUTH_TOKEN+x}" ]; then
-  npm run sentry -- releases new -p compiler-explorer "${RELEASE_NAME}"
-  npm run sentry -- releases set-commits --auto "${RELEASE_NAME}"
-  npm run sentry -- releases files "${RELEASE_NAME}" upload-sourcemaps out/dist/static
-fi
