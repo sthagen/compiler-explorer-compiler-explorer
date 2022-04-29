@@ -31,6 +31,7 @@
     "clipboard": "^2.0.8",
     "compiler-opt-info": "0.0.4",
     "compression": "^1.7.1",
+    "copy-webpack-plugin": "^9.1.0",
     "cross-env": "^7.0.3",
     "es6-promise": "^4.2.8",
     "eslint-plugin-header": "^3.1.1",
@@ -171,6 +172,7 @@
     "format-fix-files": "prettier --write --ignore-unknown",
     "format-check": "prettier --ignore-unknown --check ./static/**/*.ts",
     "ts-compile": "tsc",
+    "ts-check": "tsc -p ./tsconfig.backend.json --noEmit --module esnext && tsc -p ./tsconfig.frontend.json --noEmit",
     "webpack": "webpack --node-env=production"
   },
   "lint-staged": {

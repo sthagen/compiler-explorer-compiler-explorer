@@ -84,6 +84,8 @@ export abstract class Pane<S> {
 
         this.paneRenaming = new PaneRenaming(this, state);
 
+        this.registerDynamicElements(state);
+
         this.registerButtons(state);
         this.registerStandardCallbacks();
         this.registerCallbacks();
@@ -115,6 +117,9 @@ export abstract class Pane<S> {
      * ```
      */
     abstract registerOpeningAnalyticsEvent(): void;
+
+    /** Optional overridable code for initializing necessary elements before rest of registers **/
+    registerDynamicElements(state: S): void {}
 
     /** Optionally overridable code for initializing pane buttons */
     registerButtons(state: S): void {}
@@ -270,13 +275,13 @@ export abstract class MonacoPane<E extends monaco.editor.IEditor, S> extends Pan
         this.registerEditorActions();
     }
 
-    registerButtons(state: S): void {
+    override registerButtons(state: S): void {
         const editorRoot = this.domRoot.find('.monaco-placeholder')[0];
         this.editor = this.createEditor(editorRoot);
         this.fontScale = new FontScale(this.domRoot, state, this.editor);
     }
 
-    getCurrentState(): MonacoPaneState {
+    override getCurrentState(): MonacoPaneState {
         const parent = super.getCurrentState();
         const state: MonacoPaneState = {
             selection: this.selection,
@@ -306,7 +311,7 @@ export abstract class MonacoPane<E extends monaco.editor.IEditor, S> extends Pan
      */
     abstract createEditor(editorRoot: HTMLElement): E;
 
-    protected onSettingsChange(settings: SiteSettings) {
+    protected override onSettingsChange(settings: SiteSettings) {
         super.onSettingsChange(settings);
         this.editor.updateOptions({
             contextmenu: settings.useCustomContextMenu,
@@ -326,7 +331,7 @@ export abstract class MonacoPane<E extends monaco.editor.IEditor, S> extends Pan
     }
 
     /** Initialize standard lifecycle hooks */
-    protected registerStandardCallbacks(): void {
+    protected override registerStandardCallbacks(): void {
         super.registerStandardCallbacks();
         this.fontScale.on('change', this.updateState.bind(this));
     }
