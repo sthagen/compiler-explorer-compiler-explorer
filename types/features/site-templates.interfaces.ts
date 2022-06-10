@@ -1,4 +1,4 @@
-// Copyright (c) 2020, Compiler Explorer Authors
+// Copyright (c) 2022, Compiler Explorer Authors
 // All rights reserved.
 //
 // Redistribution and use in source and binary forms, with or without
@@ -22,6 +22,7 @@
 // ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 // POSSIBILITY OF SUCH DAMAGE.
 
-export {BuildEnvSetupCeConanDirect} from './ceconan';
-export {BuildEnvSetupCliConan} from './cliconan';
-export {BuildEnvSetupCeConanRustDirect} from './ceconan-rust';
+export type SiteTemplatesType = {
+    meta: Record<string, string>;
+    templates: Record<string, string>;
+};
