@@ -1393,24 +1393,30 @@ Editor.prototype.onCompileResponse = function (compilerId, compiler, result) {
                     }
                 }
 
-                var severity = 3; // error
-                if (obj.tag.text.match(/^warning/)) severity = 2;
-                if (obj.tag.text.match(/^note/)) severity = 1;
                 var colBegin = 0;
                 var colEnd = Infinity;
+                var lineBegin = obj.tag.line;
+                var lineEnd = obj.tag.line;
                 if (obj.tag.column) {
-                    var span = this.getTokenSpan(obj.tag.line, obj.tag.column);
-                    colBegin = obj.tag.column;
-                    colEnd = span.colEnd;
-                    if (colEnd === obj.tag.column) colEnd = -1;
+                    if (obj.tag.endcolumn) {
+                        colBegin = obj.tag.column;
+                        colEnd = obj.tag.endcolumn;
+                        lineBegin = obj.tag.line;
+                        lineEnd = obj.tag.endline;
+                    } else {
+                        var span = this.getTokenSpan(obj.tag.line, obj.tag.column);
+                        colBegin = obj.tag.column;
+                        colEnd = span.colEnd;
+                        if (colEnd === obj.tag.column) colEnd = -1;
+                    }
                 }
                 return {
-                    severity: severity,
+                    severity: obj.tag.severity,
                     message: obj.tag.text,
                     source: obj.source,
-                    startLineNumber: obj.tag.line,
+                    startLineNumber: lineBegin,
                     startColumn: colBegin,
-                    endLineNumber: obj.tag.line,
+                    endLineNumber: lineEnd,
                     endColumn: colEnd,
                 };
             },

@@ -3,6 +3,9 @@ export type ResultLineTag = {
     column?: number;
     file?: string;
     text: string;
+    severity: number;
+    endline?: number;
+    endcolumn?: number;
 };
 
 export type ResultLine = {
