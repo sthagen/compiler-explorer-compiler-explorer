@@ -1523,7 +1523,7 @@ Editor.prototype.onExecuteResponse = function (executorId, compiler, result)  {
     var output = this.getAllOutputAndErrors(result, compiler.name, 'Execution ' + executorId);
     output = output.concat(this.getAllOutputAndErrors(result.buildResult, compiler.name, 'Executor ' + executorId));
 
-    this.setDecorationTags(this.collectOutputWidgets(output), 'Executor '+ executorId);
+    this.setDecorationTags(this.collectOutputWidgets(output).widgets, 'Executor '+ executorId);
 
     this.numberUsedLines();
 };
@@ -1796,7 +1796,7 @@ function getSelectizeRenderHtml(data, escape, width, height) {
         '<div class="d-flex" style="align-items: center">' +
         '<div class="mr-1 d-flex" style="align-items: center">' +
         '<img src="' +
-        data.logoData +
+        (data.logoData ? data.logoData : '') +
         '" class="' +
         (data.logoDataDark ? 'theme-light-only' : '') +
         '" width="' +
@@ -1814,6 +1814,7 @@ function getSelectizeRenderHtml(data, escape, width, height) {
             height +
             'px"/>';
     }
+
     result += '</div><div>' + escape(data.name) + '</div></div>';
     return result;
 }
