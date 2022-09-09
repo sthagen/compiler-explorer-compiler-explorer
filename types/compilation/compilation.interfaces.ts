@@ -27,6 +27,7 @@ import {ResultLine} from '../resultline/resultline.interfaces';
 
 export type CompilationResult = {
     code: number;
+    timedOut: boolean;
     buildResult?: unknown;
     inputFilename?: string;
     asm?: ResultLine[];
@@ -79,6 +80,10 @@ export type CompilationResult = {
 
     hasHaskellCmmOutput?: boolean;
     haskellCmmOutput?: any;
+
+    forceBinaryView?: boolean;
+    bbcdiskimage?: string;
+    hints?: string[];
 };
 
 export type ExecutionOptions = {
@@ -91,6 +96,7 @@ export type ExecutionOptions = {
     appHome?: string;
     customCwd?: string;
     input?: any;
+    killChild?: () => void;
 };
 
 export type BuildResult = {
