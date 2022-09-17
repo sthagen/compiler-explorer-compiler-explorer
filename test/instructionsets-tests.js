@@ -22,19 +22,33 @@
 // ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 // POSSIBILITY OF SUCH DAMAGE.
 
-export {ClangFormatTool} from './clang-format-tool';
-export {ClangQueryTool} from './clang-query-tool';
-export {ClangTidyTool} from './clang-tidy-tool';
-export {CompilerDropinTool} from './compiler-dropin-tool';
-export {LLVMMcaTool} from './llvm-mca-tool';
-export {LLVMCovTool} from './llvm-cov-tool';
-export {MicrosoftAnalysisTool} from './microsoft-analysis-tool';
-export {OSACATool} from './osaca-tool';
-export {PaholeTool} from './pahole-tool';
-export {PvsStudioTool} from './pvs-studio-tool';
-export {ReadElfTool} from './readelf-tool';
-export {RustFmtTool} from './rustfmt-tool';
-export {StringsTool} from './strings-tool';
-export {BBCDiskifyTool} from './bbcdiskify-tool';
-export {x86to6502Tool} from './x86to6502-tool';
-export {TestingTool} from './testing-tool';
+import {InstructionSets} from '../lib/instructionsets';
+
+describe('InstructionSets', async () => {
+    it('should recognize aarch64 for clang target', async () => {
+        const isets = new InstructionSets();
+
+        return isets
+            .getCompilerInstructionSetHint('aarch64-linux-gnu', '/opt/compiler-explorer/clang-11.0.1/bin/clang++')
+            .should.eventually.equal('aarch64');
+    });
+
+    it('should recognize gcc aarch64 from filepath', async () => {
+        const isets = new InstructionSets();
+
+        return isets
+            .getCompilerInstructionSetHint(
+                false,
+                '/opt/compiler-explorer/arm64/gcc-12.1.0/aarch64-unknown-linux-gnu/bin/aarch64-unknown-linux-gnu-g++',
+            )
+            .should.eventually.equal('aarch64');
+    });
+
+    it('should default to amd64 when not apparant', async () => {
+        const isets = new InstructionSets();
+
+        return isets
+            .getCompilerInstructionSetHint(false, '/opt/compiler-explorer/gcc-12.2.0/bin/g++')
+            .should.eventually.equal('amd64');
+    });
+});
