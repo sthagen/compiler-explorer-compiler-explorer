@@ -128,21 +128,8 @@ function Compiler(hub, container, state) {
 
     this.initButtons(state);
 
-    var monacoDisassembly = 'asm';
-    // Bandaid fix to not have to include monacoDisassembly everywhere in languages.js
-    if (languages[this.currentLangId]) {
-        switch (languages[this.currentLangId].id) {
-            case 'cuda':
-                monacoDisassembly = 'ptx';
-                break;
-            case 'ruby':
-                monacoDisassembly = 'asmruby';
-                break;
-            case 'mlir':
-                monacoDisassembly = 'mlir';
-                break;
-        }
-    }
+    var monacoDisassembly =
+        (languages[this.currentLangId] ? languages[this.currentLangId].monacoDisassembly : null) || 'asm';
 
     this.outputEditor = monaco.editor.create(
         this.monacoPlaceholder[0],
@@ -1430,7 +1417,59 @@ Compiler.prototype.postCompilationResult = function (request, result, wasCmake) 
 
     if (result.bbcdiskimage) {
         this.emulateBbcDisk(result.bbcdiskimage);
+    } else if (result.speccytape) {
+        this.emulateSpeccyTape(result.speccytape);
+    } else if (result.miraclesms) {
+        this.emulateMiracleSMS(result.miraclesms);
     }
+};
+
+Compiler.prototype.emulateMiracleSMS = function (image) {
+    var dialog = $('#miracleemu');
+
+    this.alertSystem.notify(
+        'Click ' +
+            '<a target="_blank" id="miracle_emulink" style="cursor:pointer;" click="javascript:;">here</a>' +
+            ' to emulate',
+        {
+            group: 'emulation',
+            collapseSimilar: true,
+            dismissTime: 10000,
+            onBeforeShow: function (elem) {
+                elem.find('#miracle_emulink').on('click', function () {
+                    dialog.modal();
+
+                    var emuwindow = dialog.find('#miracleemuframe')[0].contentWindow;
+                    var tmstr = Date.now();
+                    emuwindow.location = 'https://xania.org/miracle/miracle.html?' + tmstr + '#b64sms=' + image;
+                });
+            },
+        }
+    );
+};
+
+Compiler.prototype.emulateSpeccyTape = function (image) {
+    var dialog = $('#jsspeccyemu');
+
+    this.alertSystem.notify(
+        'Click ' +
+            '<a target="_blank" id="jsspeccy_emulink" style="cursor:pointer;" click="javascript:;">here</a>' +
+            ' to emulate',
+        {
+            group: 'emulation',
+            collapseSimilar: true,
+            dismissTime: 10000,
+            onBeforeShow: function (elem) {
+                elem.find('#jsspeccy_emulink').on('click', function () {
+                    dialog.modal();
+
+                    var emuwindow = dialog.find('#speccyemuframe')[0].contentWindow;
+                    var tmstr = Date.now();
+                    emuwindow.location = 'https://static.ce-cdn.net/jsspeccy/index.html?' + tmstr + '#b64tape=' + image;
+                });
+            },
+        }
+    );
 };
 
 Compiler.prototype.emulateBbcDisk = function (bbcdiskimage) {
@@ -1949,6 +1988,7 @@ Compiler.prototype.initButtons = function (state) {
     this.prependOptions = this.domRoot.find('.prepend-options');
     this.fullCompilerName = this.domRoot.find('.full-compiler-name');
     this.fullTimingInfo = this.domRoot.find('.full-timing-info');
+    this.compilerLicenseButton = this.domRoot.find('.compiler-license');
     this.setCompilationOptionsPopover(this.compiler ? this.compiler.options : null);
     // Dismiss on any click that isn't either in the opening element, inside
     // the popover or on any alert
@@ -2226,7 +2266,16 @@ Compiler.prototype.updateButtons = function () {
     this.gnatDebugButton.toggle(!!this.compiler.supportsGnatDebugViews);
     this.executorButton.toggle(!!this.compiler.supportsExecute);
 
+    this.compilerLicenseButton.toggle(this.hasCompilerLicenseInfo());
+
     this.enableToolButtons();
+};
+
+Compiler.prototype.hasCompilerLicenseInfo = function () {
+    return (
+        this.compiler.license &&
+        (this.compiler.license.preamble || this.compiler.license.link || this.compiler.license.name)
+    );
 };
 
 Compiler.prototype.handlePopularArgumentsResult = function (result) {
@@ -2274,6 +2323,42 @@ Compiler.prototype.handlePopularArgumentsResult = function (result) {
             }, this)
         );
     }
+};
+
+Compiler.prototype.generateLicenseInfo = function () {
+    if (this.compiler) {
+        // MSVC will take a while to add this
+        if (!this.compiler.license) {
+            return 'No license information to display for ' + this.compiler.name;
+        }
+        var result = '';
+        var preamble = this.compiler.license.preamble;
+        if (preamble) {
+            result += preamble + '<br/>';
+        }
+        var name = this.compiler.license.name;
+        var link = this.compiler.license.link;
+
+        if (name || link) {
+            result += this.compiler.name + ' is licensed under its ';
+
+            if (link) {
+                var aText = name ? name : link;
+                result += '<a href="' + link + '" target="_blank">' + aText + '</a>';
+            } else {
+                result += name;
+            }
+
+            result += ' license';
+        }
+
+        if (!result) {
+            result = 'No license information to display for ' + this.compiler.name;
+        }
+
+        return result;
+    }
+    return 'No compiler selected';
 };
 
 Compiler.prototype.onFontScale = function () {
@@ -2431,6 +2516,14 @@ Compiler.prototype.initCallbacks = function () {
         _.bind(function () {
             this.compilerService.cache.reset();
             this.compile(true);
+        }, this)
+    );
+
+    this.compilerLicenseButton.on(
+        'click',
+        _.bind(function () {
+            var title = this.compiler ? 'License for ' + this.compiler.name : 'No compiler selected';
+            this.alertSystem.alert(title, this.generateLicenseInfo());
         }, this)
     );
 
