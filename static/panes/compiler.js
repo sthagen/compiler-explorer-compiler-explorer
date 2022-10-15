@@ -128,15 +128,12 @@ function Compiler(hub, container, state) {
 
     this.initButtons(state);
 
-    var monacoDisassembly =
-        (languages[this.currentLangId] ? languages[this.currentLangId].monacoDisassembly : null) || 'asm';
-
     this.outputEditor = monaco.editor.create(
         this.monacoPlaceholder[0],
         monacoConfig.extendConfig(
             {
                 readOnly: true,
-                language: monacoDisassembly,
+                language: 'asm',
                 glyphMargin: !options.embedded,
                 guides: false,
                 vimInUse: false,
@@ -1171,6 +1168,13 @@ Compiler.prototype.setAssembly = function (result, filteredCount) {
     this.assembly = asm;
     if (!this.outputEditor || !this.outputEditor.getModel()) return;
     var editorModel = this.outputEditor.getModel();
+    if (result.languageId) {
+        monaco.editor.setModelLanguage(editorModel, result.languageId);
+    } else {
+        var monacoDisassembly =
+            (languages[this.currentLangId] ? languages[this.currentLangId].monacoDisassembly : null) || 'asm';
+        monaco.editor.setModelLanguage(editorModel, monacoDisassembly);
+    }
     var msg = '<No assembly generated>';
     if (asm.length) {
         msg = _.pluck(asm, 'text').join('\n');
@@ -1668,7 +1672,6 @@ Compiler.prototype.onIrViewClosed = function (id) {
 
 Compiler.prototype.onLLVMOptPipelineViewOpened = function (id) {
     if (this.id === id) {
-        this.llvmOptPipelineButton.prop('disabled', true);
         this.llvmOptPipelineViewOpen = true;
         this.compile();
     }
@@ -1676,7 +1679,6 @@ Compiler.prototype.onLLVMOptPipelineViewOpened = function (id) {
 
 Compiler.prototype.onLLVMOptPipelineViewClosed = function (id) {
     if (this.id === id) {
-        this.llvmOptPipelineButton.prop('disabled', false);
         this.llvmOptPipelineViewOpen = false;
     }
 };
@@ -2233,7 +2235,8 @@ Compiler.prototype.updateButtons = function () {
     this.ppButton.prop('disabled', this.ppViewOpen);
     this.astButton.prop('disabled', this.astViewOpen);
     this.irButton.prop('disabled', this.irViewOpen);
-    this.llvmOptPipelineButton.prop('disabled', this.llvmOptPipelineViewOpen);
+    // As per #4112, it's useful to have this available more than once: Don't disable it when it opens
+    // this.llvmOptPipelineButton.prop('disabled', this.llvmOptPipelineViewOpen);
     this.deviceButton.prop('disabled', this.deviceViewOpen);
     this.rustMirButton.prop('disabled', this.rustMirViewOpen);
     this.haskellCoreButton.prop('disabled', this.haskellCoreViewOpen);
@@ -2252,8 +2255,8 @@ Compiler.prototype.updateButtons = function () {
     this.ppButton.toggle(!!this.compiler.supportsPpView);
     this.astButton.toggle(!!this.compiler.supportsAstView);
     this.irButton.toggle(!!this.compiler.supportsIrView);
-    // As per #4112, it's useful to have this available more than once: Don't disable it when it opens
-    //this.llvmOptPipelineButton.toggle(!!this.compiler.supportsLLVMOptPipelineView);
+
+    this.llvmOptPipelineButton.toggle(!!this.compiler.supportsLLVMOptPipelineView);
     this.deviceButton.toggle(!!this.compiler.supportsDeviceAsmView);
     this.rustMirButton.toggle(!!this.compiler.supportsRustMirView);
     this.rustMacroExpButton.toggle(!!this.compiler.supportsRustMacroExpView);
