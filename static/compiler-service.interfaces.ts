@@ -22,24 +22,15 @@
 // ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 // POSSIBILITY OF SUCH DAMAGE.
 
-export interface OptState {
-    optOutput?: OptCodeEntry[];
-    source: any; // TODO
+export enum CompilationStatusCode {
+    NONE = 0,
+    OK = 1,
+    WITH_WARNINGS = 2,
+    WITH_ERRORS = 3,
+    COMPILING = 4,
 }
 
-type SourceLocation = {
-    File: string;
-    Line: number;
-    Column: number;
-};
-
-export type OptCodeEntry = {
-    // TODO: Not fully correct type yet, will do for now
-    DebugLoc: SourceLocation;
-    Function: string;
-    Pass: string;
-    Name: string;
-    text: string;
-    optType: string;
-    displayString: string;
-};
+export interface CompilationStatus {
+    code: CompilationStatusCode;
+    compilerOut: number;
+}

@@ -22,24 +22,11 @@
 // ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 // POSSIBILITY OF SUCH DAMAGE.
 
-export interface OptState {
-    optOutput?: OptCodeEntry[];
-    source: any; // TODO
-}
-
-type SourceLocation = {
-    File: string;
-    Line: number;
-    Column: number;
-};
-
-export type OptCodeEntry = {
-    // TODO: Not fully correct type yet, will do for now
-    DebugLoc: SourceLocation;
-    Function: string;
-    Pass: string;
-    Name: string;
-    text: string;
-    optType: string;
-    displayString: string;
+export type EditorState = {
+    filename?: string;
+    options?: {
+        readOnly?: boolean;
+    };
+    source?: string;
+    lang?: string;
 };
