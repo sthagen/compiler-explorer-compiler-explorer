@@ -1,4 +1,4 @@
-// Copyright (c) 2020, Compiler Explorer Authors
+// Copyright (c) 2018, Compiler Explorer Authors
 // All rights reserved.
 //
 // Redistribution and use in source and binary forms, with or without
@@ -22,43 +22,31 @@
 // ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 // POSSIBILITY OF SUCH DAMAGE.
 
-import yaml from 'yaml';
+import * as utils from '../utils';
 
-function namify(mapOrString) {
-    if (typeof mapOrString == 'string') return {name: mapOrString};
-    return mapOrString;
-}
+const findQuotes = /(.*?)("(?:[^"\\]|\\.)*")(.*)/;
 
-function clickify(sponsor) {
-    if (sponsor.url) {
-        sponsor.onclick = `window.onSponsorClick(${JSON.stringify(sponsor)});`;
+export class AsmRegex {
+    protected labelDef: RegExp;
+
+    constructor() {
+        this.labelDef = /^(?:.proc\s+)?([\w$.@]+):/i;
     }
-    return sponsor;
-}
 
-function getIconUrl(sponsor) {
-    const icon = sponsor.icon || sponsor.img;
-    if (icon) {
-        sponsor.icon = icon;
+    static squashHorizontalWhitespace(line, atStart) {
+        const quotes = line.match(findQuotes);
+        if (quotes) {
+            return (
+                this.squashHorizontalWhitespace(quotes[1], atStart) +
+                quotes[2] +
+                this.squashHorizontalWhitespace(quotes[3], false)
+            );
+        }
+        return utils.squashHorizontalWhitespace(line, atStart);
     }
-    return sponsor;
-}
 
-function compareSponsors(lhs, rhs) {
-    const lhsPrio = lhs.priority || 0;
-    const rhsPrio = rhs.priority || 0;
-    if (lhsPrio !== rhsPrio) return rhsPrio - lhsPrio;
-    return lhs.name.localeCompare(rhs.name);
-}
-
-export function loadSponsorsFromString(stringConfig) {
-    const sponsorConfig = yaml.parse(stringConfig);
-    sponsorConfig.icons = [];
-    for (const level of sponsorConfig.levels) {
-        for (const required of ['name', 'description'])
-            if (!level[required]) throw new Error(`Level is missing '${required}'`);
-        level.sponsors = level.sponsors.map(namify).map(clickify).map(getIconUrl).sort(compareSponsors);
-        sponsorConfig.icons.push(...level.sponsors.filter(sponsor => sponsor.topIcon && sponsor.icon));
+    static filterAsmLine(line, filters) {
+        if (!filters.trim) return line;
+        return this.squashHorizontalWhitespace(line, true);
     }
-    return sponsorConfig;
 }

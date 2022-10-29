@@ -1,4 +1,4 @@
-// Copyright (c) 2018, Compiler Explorer Authors
+// Copyright (c) 2022, Compiler Explorer Authors
 // All rights reserved.
 //
 // Redistribution and use in source and binary forms, with or without
@@ -22,29 +22,28 @@
 // ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 // POSSIBILITY OF SUCH DAMAGE.
 
-import * as utils from '../utils';
+export type Sponsor = {
+    name: string;
+    description?: string[];
+    img?: string;
+    icon?: string;
+    icon_dark?: string;
+    url?: string;
+    onclick: string;
+    priority: number;
+    topIcon: boolean;
+    sideBySide: boolean;
+    statsId?: string;
+};
 
-const findQuotes = /(.*?)("(?:[^"\\]|\\.)*")(.*)/;
+export type Level = {
+    name: string;
+    description: string;
+    class?: string;
+    sponsors: Sponsor[];
+};
 
-export class AsmRegex {
-    constructor() {
-        this.labelDef = /^(?:.proc\s+)?([\w$.@]+):/i;
-    }
-
-    static squashHorizontalWhitespace(line, atStart) {
-        const quotes = line.match(findQuotes);
-        if (quotes) {
-            return (
-                this.squashHorizontalWhitespace(quotes[1], atStart) +
-                quotes[2] +
-                this.squashHorizontalWhitespace(quotes[3], false)
-            );
-        }
-        return utils.squashHorizontalWhitespace(line, atStart);
-    }
-
-    static filterAsmLine(line, filters) {
-        if (!filters.trim) return line;
-        return this.squashHorizontalWhitespace(line, true);
-    }
-}
+export type Sponsors = {
+    icons: Sponsor[];
+    levels: Level[];
+};

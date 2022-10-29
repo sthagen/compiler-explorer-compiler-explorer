@@ -28,10 +28,11 @@ import * as colour from '../colour';
 import * as loadSaveLib from '../widgets/load-save';
 import * as Components from '../components';
 import * as monaco from 'monaco-editor';
+import {Buffer} from 'buffer';
 import {options} from '../options';
 import {Alert} from '../alert';
 import {ga} from '../analytics';
-import monacoVim from 'monaco-vim';
+import * as monacoVim from 'monaco-vim';
 import * as monacoConfig from '../monaco-config';
 import * as quickFixesHandler from '../quick-fixes-handler';
 import TomSelect from 'tom-select';
@@ -52,26 +53,31 @@ import {CompilationResult} from '../../types/compilation/compilation.interfaces'
 import {Decoration, Motd} from '../motd.interfaces';
 import type {escape_html} from 'tom-select/dist/types/utils';
 import ICursorSelectionChangedEvent = editor.ICursorSelectionChangedEvent;
+import {Compiler} from './compiler';
 
 const loadSave = new loadSaveLib.LoadSave();
 const languages = options.languages as Record<string, Language | undefined>;
 
+type ResultLineWithSourcePane = ResultLine & {
+    sourcePane: string;
+};
+
 // eslint-disable-next-line max-statements
 export class Editor extends MonacoPane<monaco.editor.IStandaloneCodeEditor, EditorState> {
-    private readonly id: number;
-    private readonly ourCompilers: Record<string, boolean>;
-    private readonly ourExecutors: Record<number, boolean>;
-    private readonly httpRoot: string;
-    private readonly asmByCompiler: Record<string, ResultLine[] | undefined>;
-    private readonly defaultFileByCompiler: Record<number, string>;
-    private readonly busyCompilers: Record<number, boolean>;
+    private id: number;
+    private ourCompilers: Record<string, boolean>;
+    private ourExecutors: Record<number, boolean>;
+    private httpRoot: string;
+    private asmByCompiler: Record<string, ResultLine[] | undefined>;
+    private defaultFileByCompiler: Record<number, string>;
+    private busyCompilers: Record<number, boolean>;
     private colours: string[];
-    private readonly treeCompilers: Record<number, Record<number, boolean> | undefined>;
+    private treeCompilers: Record<number, Record<number, boolean> | undefined>;
     private decorations: Record<string, IModelDeltaDecoration[] | undefined>;
     private prevDecorations: string[];
     private extraDecorations?: Decoration[];
     private fadeTimeoutId: NodeJS.Timeout | null;
-    private readonly editorSourceByLang: Record<LanguageKey, string | undefined>;
+    private editorSourceByLang: Record<LanguageKey, string | undefined>;
     private alertSystem: Alert;
     private filename: string | false;
     private awaitingInitialResults: boolean;
@@ -102,29 +108,9 @@ export class Editor extends MonacoPane<monaco.editor.IStandaloneCodeEditor, Edit
 
     constructor(hub: Hub, state: MonacoPaneState & EditorState, container: Container) {
         super(hub, container, state);
-        this.id = state.id || hub.nextEditorId();
-        this.ourCompilers = {};
-        this.ourExecutors = {};
-        this.httpRoot = window.httpRoot;
-        this.asmByCompiler = {};
-        this.defaultFileByCompiler = {};
-        this.busyCompilers = {};
-        this.colours = [];
-        this.treeCompilers = {};
 
-        this.decorations = {};
-        this.prevDecorations = [];
-        this.extraDecorations = [];
-
-        this.fadeTimeoutId = null;
-
-        this.editorSourceByLang = {} as Record<LanguageKey, string | undefined>;
         this.alertSystem = new Alert();
         this.alertSystem.prefixMessage = 'Editor #' + this.id;
-
-        this.awaitingInitialResults = false;
-
-        this.revealJumpStack = [];
 
         if (this.currentLanguage) this.onLanguageChange(this.currentLanguage.id, true);
 
@@ -164,6 +150,28 @@ export class Editor extends MonacoPane<monaco.editor.IStandaloneCodeEditor, Edit
         //     // movement etc).
         //     this.debouncedEmitChange();
         // }, this));
+    }
+
+    override initializeDefaults(): void {
+        this.ourCompilers = {};
+        this.ourExecutors = {};
+        this.asmByCompiler = {};
+        this.defaultFileByCompiler = {};
+        this.busyCompilers = {};
+        this.colours = [];
+        this.treeCompilers = {};
+
+        this.decorations = {};
+        this.prevDecorations = [];
+        this.extraDecorations = [];
+
+        this.fadeTimeoutId = null;
+
+        this.editorSourceByLang = {} as Record<LanguageKey, string | undefined>;
+
+        this.awaitingInitialResults = false;
+
+        this.revealJumpStack = [];
     }
 
     override registerOpeningAnalyticsEvent(): void {
@@ -471,7 +479,9 @@ export class Editor extends MonacoPane<monaco.editor.IStandaloneCodeEditor, Edit
     }
 
     enableVim(): void {
-        this.vimMode = monacoVim.initVimMode(this.editor, this.domRoot.find('#v-status')[0]);
+        const statusElem = this.domRoot.find('#v-status')[0];
+        const vimMode = monacoVim.initVimMode(this.editor, statusElem);
+        this.vimMode = vimMode;
         this.vimFlag.prop('class', 'btn btn-info');
         // @ts-expect-error: IStandaloneCodeEditor is missing this property
         this.editor.vimInUse = true;
@@ -488,12 +498,15 @@ export class Editor extends MonacoPane<monaco.editor.IStandaloneCodeEditor, Edit
     override initializeGlobalDependentProperties(): void {
         super.initializeGlobalDependentProperties();
 
+        this.httpRoot = window.httpRoot;
         this.settings = Settings.getStoredSettings();
         this.langKeys = Object.keys(languages);
     }
 
     override initializeStateDependentProperties(state: MonacoPaneState & EditorState): void {
         super.initializeStateDependentProperties(state);
+
+        this.id = state.id || this.hub.nextEditorId();
 
         this.filename = state.filename ?? false;
         this.selection = state.selection;
@@ -545,7 +558,7 @@ export class Editor extends MonacoPane<monaco.editor.IStandaloneCodeEditor, Edit
             labelField: 'name',
             searchField: ['name'],
             placeholder: '🔍 Select a language...',
-            options: _.map(usableLanguages, _.identity),
+            options: _.map(usableLanguages, _.identity) as any[],
             items: this.currentLanguage?.id ? [this.currentLanguage.id] : [],
             dropdownParent: 'body',
             plugins: ['dropdown_input'],
@@ -704,12 +717,15 @@ export class Editor extends MonacoPane<monaco.editor.IStandaloneCodeEditor, Edit
         for (const compilerIdStr of Object.keys(this.ourCompilers)) {
             const compilerId = parseInt(compilerIdStr);
 
-            const glCompiler = _.find(this.container.layoutManager.root.getComponentsByName('compiler'), function (c) {
-                return c.id === compilerId;
-            });
+            const glCompiler: Compiler | undefined = _.find(
+                this.container.layoutManager.root.getComponentsByName('compiler'),
+                function (c) {
+                    return c.id === compilerId;
+                }
+            );
 
             if (glCompiler) {
-                const state = glCompiler.currentState();
+                const state = glCompiler.getCurrentState();
                 states.push(state);
             }
         }
@@ -873,7 +889,8 @@ export class Editor extends MonacoPane<monaco.editor.IStandaloneCodeEditor, Edit
                 selectedToken.colBegin,
                 selectedToken.colEnd,
                 reveal,
-                this.id + ''
+                this.getPaneName(),
+                this.id
             );
         }
     }
@@ -1251,12 +1268,9 @@ export class Editor extends MonacoPane<monaco.editor.IStandaloneCodeEditor, Edit
                             const defaultFile = this.defaultFileByCompiler[compilerId];
                             foundInTrees = true;
 
-                            // @ts-expect-error: Property 'source' does not exist on type 'ResultLine'
                             if (asmLine.source && asmLine.source.line > 0) {
-                                // @ts-expect-error: Property 'source' does not exist on type 'ResultLine'
                                 const sourcefilename = asmLine.source.file ? asmLine.source.file : defaultFile;
                                 if (this.id === tree.multifileService.getEditorIdByFilename(sourcefilename)) {
-                                    // @ts-expect-error: Property 'source' does not exist on type 'ResultLine'
                                     result[asmLine.source.line - 1] = true;
                                 }
                             }
@@ -1266,14 +1280,10 @@ export class Editor extends MonacoPane<monaco.editor.IStandaloneCodeEditor, Edit
 
                 if (!foundInTrees) {
                     if (
-                        // @ts-expect-error: Property 'source' does not exist on type 'ResultLine'
                         asmLine.source &&
-                        // @ts-expect-error: Property 'source' does not exist on type 'ResultLine'
                         (asmLine.source.file === null || asmLine.source.mainsource) &&
-                        // @ts-expect-error: Property 'source' does not exist on type 'ResultLine'
                         asmLine.source.line > 0
                     ) {
-                        // @ts-expect-error: Property 'source' does not exist on type 'ResultLine'
                         result[asmLine.source.line - 1] = true;
                     }
                 }
@@ -1383,19 +1393,26 @@ export class Editor extends MonacoPane<monaco.editor.IStandaloneCodeEditor, Edit
         this.busyCompilers[compilerId] = true;
     }
 
-    addSource(arr: (ResultLine & {source?: string})[] | undefined, source: string): (ResultLine & {source: string})[] {
-        arr?.forEach(element => {
-            element.source = source;
-        });
+    addSource(arr: ResultLine[] | undefined, sourcePane: string): ResultLineWithSourcePane[] {
+        if (arr) {
+            const newArr: ResultLineWithSourcePane[] = arr.map(element => {
+                return {
+                    sourcePane: sourcePane,
+                    ...element,
+                };
+            });
 
-        return (arr as (ResultLine & {source: string})[] | undefined) ?? [];
+            return newArr;
+        } else {
+            return [];
+        }
     }
 
     getAllOutputAndErrors(
         result: CompilationResult,
         compilerName: string,
         compilerId: number | string
-    ): (ResultLine & {source: string})[] {
+    ): (ResultLine & {sourcePane: string})[] {
         const compilerTitle = compilerName + ' #' + compilerId;
         let all = this.addSource(result.stdout, compilerTitle);
 
@@ -1416,7 +1433,7 @@ export class Editor extends MonacoPane<monaco.editor.IStandaloneCodeEditor, Edit
         return all;
     }
 
-    collectOutputWidgets(output: (ResultLine & {source: string})[]): {
+    collectOutputWidgets(output: (ResultLine & {sourcePane: string})[]): {
         fixes: monaco.languages.CodeAction[];
         widgets: editor.IMarkerData[];
     } {
@@ -1468,7 +1485,7 @@ export class Editor extends MonacoPane<monaco.editor.IStandaloneCodeEditor, Edit
                 const diag: monaco.editor.IMarkerData = {
                     severity: obj.tag.severity,
                     message: obj.tag.text,
-                    source: obj.source,
+                    source: obj.sourcePane,
                     startLineNumber: lineBegin ?? 0,
                     startColumn: colBegin,
                     endLineNumber: lineEnd ?? 0,
@@ -1560,13 +1577,25 @@ export class Editor extends MonacoPane<monaco.editor.IStandaloneCodeEditor, Edit
         this.setDecorationTags(collectedOutput.widgets, String(compilerId));
         this.setQuickFixes(collectedOutput.fixes);
 
+        let asm: ResultLine[] = [];
+
         // @ts-expect-error: result has no property 'result'
         if (result.result && result.result.asm) {
             // @ts-expect-error: result has no property 'result'
-            this.asmByCompiler[compilerId] = result.result.asm;
-        } else {
-            this.asmByCompiler[compilerId] = result.asm;
+            asm = result.result.asm;
+        } else if (result.asm) {
+            asm = result.asm;
         }
+
+        if (result.devices && Array.isArray(asm)) {
+            asm = asm.concat(
+                Object.values(result.devices).flatMap(device => {
+                    return device.asm ?? [];
+                })
+            );
+        }
+
+        this.asmByCompiler[compilerId] = asm;
 
         if (result.inputFilename) {
             this.defaultFileByCompiler[compilerId] = result.inputFilename;

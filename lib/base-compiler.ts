@@ -36,7 +36,6 @@ import {
     CompilationResult,
     CustomInputForTool,
     ExecutionOptions,
-    ToolResult,
 } from '../types/compilation/compilation.interfaces';
 import {
     LLVMOptPipelineBackendOptions,
@@ -75,7 +74,7 @@ import {AsmParser} from './parsers/asm-parser';
 import {IAsmParser} from './parsers/asm-parser.interfaces';
 import {LlvmPassDumpParser} from './parsers/llvm-pass-dump-parser';
 import {getToolchainPath} from './toolchain-utils';
-import {ToolTypeKey} from './tooling/base-tool.interface';
+import {Tool, ToolResult, ToolTypeKey} from './tooling/base-tool.interface';
 import * as utils from './utils';
 
 export class BaseCompiler {
@@ -95,7 +94,7 @@ export class BaseCompiler {
     protected llvmAst: LlvmAstParser;
     protected toolchainPath: any;
     protected possibleArguments: CompilerArguments;
-    protected possibleTools: any[];
+    protected possibleTools: Tool[];
     protected demanglerClass: any;
     protected objdumperClass: any;
     public outputFilebase: string;
@@ -402,9 +401,7 @@ export class BaseCompiler {
         }
 
         const objdumper = new this.objdumperClass();
-        const args = ['-d', outputFilename, '-l', ...objdumper.widthOptions];
-        if (demangle) args.push('-C');
-        if (intelAsm) args.push(...objdumper.intelAsmOptions);
+        const args = objdumper.getDefaultArgs(outputFilename, demangle, intelAsm);
 
         if (this.externalparser) {
             const objResult = await this.externalparser.objdumpAndParseAssembly(result.dirPath, args, filters);
@@ -1311,7 +1308,7 @@ export class BaseCompiler {
         } catch (e) {
             // Ignore errors
         }
-        return this.postProcess(asmResult, outputFilename, filters);
+        return await this.postProcess(asmResult, outputFilename, filters);
     }
 
     runToolsOfType(tools, type: ToolTypeKey, compilationInfo): Promise<ToolResult>[] {
@@ -2273,7 +2270,7 @@ export class BaseCompiler {
         if (!result.okToCache || !this.demanglerClass || !result.asm) return result;
         const demangler = new this.demanglerClass(this.compiler.demangler, this);
 
-        return demangler.process(result);
+        return await demangler.process(result);
     }
 
     async processOptOutput(optPath) {
@@ -2466,7 +2463,7 @@ but nothing was dumped. Possible causes are:
                           return result;
                       }
                       if (postProcess.length > 0) {
-                          return this.execPostProcess(result, postProcess, outputFilename, maxSize);
+                          return await this.execPostProcess(result, postProcess, outputFilename, maxSize);
                       } else {
                           const contents = await fs.readFile(outputFilename);
                           result.asm = contents.toString();
