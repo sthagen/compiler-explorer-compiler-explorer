@@ -62,6 +62,9 @@ import {LLVMOptPipelineBackendOptions} from '../../types/compilation/llvm-opt-pi
 import {CompilationResult} from '../../types/compilation/compilation.interfaces';
 import {ResultLine} from '../../types/resultline/resultline.interfaces';
 import * as utils from '../utils';
+import * as Sentry from '@sentry/browser';
+import {editor} from 'monaco-editor';
+import IEditorMouseEvent = editor.IEditorMouseEvent;
 
 const toolIcons = require.context('../../views/resources/logos', false, /\.(png|svg)$/);
 
@@ -285,6 +288,7 @@ export class Compiler extends MonacoPane<monaco.editor.IStandaloneCodeEditor, Co
     private isLabelCtxKey: monaco.editor.IContextKey<boolean>;
     private revealJumpStackHasElementsCtxKey: monaco.editor.IContextKey<boolean>;
     private isAsmKeywordCtxKey: monaco.editor.IContextKey<boolean>;
+    private lineHasLinkedSourceCtxKey: monaco.editor.IContextKey<boolean>;
 
     private ppViewOpen: boolean;
     private astViewOpen: boolean;
@@ -994,6 +998,7 @@ export class Compiler extends MonacoPane<monaco.editor.IStandaloneCodeEditor, Co
         this.isLabelCtxKey = this.editor.createContextKey('isLabel', true);
         this.revealJumpStackHasElementsCtxKey = this.editor.createContextKey('hasRevealJumpStackElements', false);
         this.isAsmKeywordCtxKey = this.editor.createContextKey('isAsmKeyword', true);
+        this.lineHasLinkedSourceCtxKey = this.editor.createContextKey('lineHasLinkedSource', false);
 
         this.editor.addAction({
             id: 'jumptolabel',
@@ -1010,25 +1015,47 @@ export class Compiler extends MonacoPane<monaco.editor.IStandaloneCodeEditor, Co
             },
         });
 
-        // Hiding the 'Jump to label' context menu option if no label can be found
-        // in the clicked position.
-        this.editor.onContextMenu(e => {
-            if (e.target.position) {
-                const label = this.getLabelAtPosition(e.target.position);
-                this.isLabelCtxKey.set(label !== null);
+        // This returns a vscode's ContextMenuController, but that type is not exposed in Monaco
+        const contextMenuContrib = this.editor.getContribution<any>('editor.contrib.contextmenu');
 
-                if (!this.compiler?.supportsAsmDocs) {
-                    // No need to show the "Show asm documentation" if it's just going to fail.
-                    // This is useful for things like xtensa which define an instructionSet but have no docs associated
-                    this.isAsmKeywordCtxKey.set(false);
-                } else {
-                    const currentWord = this.editor.getModel()?.getWordAtPosition(e.target.position);
-                    if (currentWord?.word) {
-                        this.isAsmKeywordCtxKey.set(this.isWordAsmKeyword(e.target.position.lineNumber, currentWord));
+        // This is hacked this way to be able to update the precondition keys before the context menu is shown.
+        // Right now Monaco does not expose a proper way to update those preconditions before the menu is shown,
+        // because the editor.onContextMenu callback fires after it's been shown, so it's of little use here
+        // The original source is src/vs/editor/contrib/contextmenu/browser/contextmenu.ts in vscode
+        const originalOnContextMenu: ((e: IEditorMouseEvent) => void) | undefined = contextMenuContrib._onContextMenu;
+        if (originalOnContextMenu) {
+            contextMenuContrib._onContextMenu = (e: IEditorMouseEvent) => {
+                if (e.target.position) {
+                    // Hiding the 'Jump to label' context menu option if no label can be found
+                    // in the clicked position.
+                    const label = this.getLabelAtPosition(e.target.position);
+                    this.isLabelCtxKey.set(label !== null);
+
+                    if (!this.compiler?.supportsAsmDocs) {
+                        // No need to show the "Show asm documentation" if it's just going to fail.
+                        // This is useful for things like xtensa which define an instructionSet but have no docs associated
+                        this.isAsmKeywordCtxKey.set(false);
+                    } else {
+                        const currentWord = this.editor.getModel()?.getWordAtPosition(e.target.position);
+                        if (currentWord?.word) {
+                            this.isAsmKeywordCtxKey.set(
+                                this.isWordAsmKeyword(e.target.position.lineNumber, currentWord)
+                            );
+                        }
                     }
+
+                    const lineSource = this.assembly[e.target.position.lineNumber - 1].source;
+
+                    this.lineHasLinkedSourceCtxKey.set(lineSource != null && lineSource.line > 0);
+
+                    // And call the original method now that we've updated the context keys
+                    originalOnContextMenu.apply(contextMenuContrib, [e]);
                 }
-            }
-        });
+            };
+        } else {
+            // In case this ever stops working, we'll be notified
+            Sentry.captureException(new Error('Context menu hack did not return valid original method'));
+        }
 
         this.editor.addAction({
             id: 'returnfromreveal',
@@ -1049,11 +1076,13 @@ export class Compiler extends MonacoPane<monaco.editor.IStandaloneCodeEditor, Co
             keybindingContext: undefined,
             contextMenuGroupId: 'navigation',
             contextMenuOrder: 1.5,
+            precondition: 'lineHasLinkedSource',
             run: ed => {
                 const position = ed.getPosition();
                 if (position != null) {
                     const desiredLine = position.lineNumber - 1;
                     const source = this.assembly[desiredLine].source;
+                    // The precondition ensures that this is always true, but lets not blindly belive it
                     if (source && source.line > 0) {
                         const editorId = this.getEditorIdBySourcefile(source);
                         if (editorId) {
@@ -1497,8 +1526,8 @@ export class Compiler extends MonacoPane<monaco.editor.IStandaloneCodeEditor, Co
         }
     }
 
-    private errorResult(text: string) {
-        return {asm: this.fakeAsm(text), code: -1, stdout: '', stderr: ''};
+    private errorResult(text: string): CompilationResult {
+        return {timedOut: false, asm: this.fakeAsm(text), code: -1, stdout: [], stderr: []};
     }
 
     // TODO: Figure out if this is ResultLine or Assembly
@@ -2289,24 +2318,6 @@ export class Compiler extends MonacoPane<monaco.editor.IStandaloneCodeEditor, Co
         this.fullTimingInfo = this.domRoot.find('.full-timing-info');
         this.compilerLicenseButton = this.domRoot.find('.compiler-license');
         this.setCompilationOptionsPopover(this.compiler ? this.compiler.options : null);
-        // Dismiss on any click that isn't either in the opening element, inside
-        // the popover or on any alert
-        $(document).on('mouseup', e => {
-            const target = $(e.target);
-            if (
-                !target.is(this.prependOptions) &&
-                this.prependOptions.has(target as unknown as Element).length === 0 &&
-                target.closest('.popover').length === 0
-            )
-                this.prependOptions.popover('hide');
-
-            if (
-                !target.is(this.fullCompilerName) &&
-                this.fullCompilerName.has(target as unknown as Element).length === 0 &&
-                target.closest('.popover').length === 0
-            )
-                this.fullCompilerName.popover('hide');
-        });
 
         this.initFilterButtons();
 
@@ -2591,7 +2602,7 @@ export class Compiler extends MonacoPane<monaco.editor.IStandaloneCodeEditor, Co
         }
 
         if (result && !this.flagsViewOpen) {
-            Object.values(result).forEach((arg, key) => {
+            Object.entries(result).forEach(([key, arg]) => {
                 const argumentButton = $(document.createElement('button'));
                 argumentButton.addClass('dropdown-item btn btn-light btn-sm');
                 argumentButton.attr('title', arg.description);
@@ -2744,6 +2755,25 @@ export class Compiler extends MonacoPane<monaco.editor.IStandaloneCodeEditor, Co
         this.eventHub.on('languageChange', this.onLanguageChange, this);
 
         this.eventHub.on('initialised', this.undefer, this);
+
+        // Dismiss on any click that isn't either in the opening element, inside
+        // the popover or on any alert
+        $(document).on('mouseup', e => {
+            const target = $(e.target);
+            if (
+                !target.is(this.prependOptions) &&
+                this.prependOptions.has(target as unknown as Element).length === 0 &&
+                target.closest('.popover').length === 0
+            )
+                this.prependOptions.popover('hide');
+
+            if (
+                !target.is(this.fullCompilerName) &&
+                this.fullCompilerName.has(target as unknown as Element).length === 0 &&
+                target.closest('.popover').length === 0
+            )
+                this.fullCompilerName.popover('hide');
+        });
     }
 
     initCallbacks(): void {

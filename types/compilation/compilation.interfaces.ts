@@ -28,6 +28,8 @@ import {CompilerInfo} from '../compiler.interfaces';
 import {BasicExecutionResult} from '../execution/execution.interfaces';
 import {ResultLine} from '../resultline/resultline.interfaces';
 
+import {LLVMOptPipelineOutput} from './llvm-opt-pipeline-output.interfaces';
+
 export type CompilationResult = {
     code: number;
     timedOut: boolean;
@@ -42,6 +44,10 @@ export type CompilationResult = {
     execResult?: {
         stdout?: ResultLine[];
         stderr?: ResultLine[];
+        code: number;
+        didExecute: boolean;
+        buildResult?: BuildResult;
+        execTime?: number;
     };
     hasGnatDebugOutput?: boolean;
     gnatDebugOutput?: ResultLine[];
@@ -68,7 +74,7 @@ export type CompilationResult = {
     irOutput?: any;
 
     hasLLVMOptPipelineOutput?: boolean;
-    llvmOptPipelineOutput?: any;
+    llvmOptPipelineOutput?: LLVMOptPipelineOutput | string;
 
     hasRustMirOutput?: boolean;
     rustMirOutput?: any;
@@ -96,6 +102,14 @@ export type CompilationResult = {
     jsnesrom?: string;
 
     hints?: string[];
+
+    retreivedFromCache?: boolean;
+    retreivedFromCacheTime?: number;
+    packageDownloadAndUnzipTime?: number;
+    execTime?: number | string;
+    processExecutionResultTime?: number;
+    objdumpTime?: number;
+    parsingTime?: number;
 };
 
 export type ExecutionOptions = {

@@ -83,7 +83,7 @@ export class AsmParser extends AsmRegex {
         // MIPS labels can start with a $ sign, but other assemblers use $ to mean literal.
         this.labelFindMips = /[$.A-Z_a-z][\w$.]*/g;
         this.mipsLabelDefinition = /^\$[\w$.]+:/;
-        this.dataDefn = /^\s*\.(string|asciz|ascii|[1248]?byte|short|x?word|long|quad|value|zero)/;
+        this.dataDefn = /^\s*\.(string|asciz|ascii|[1248]?byte|short|half|[dx]?word|long|quad|value|zero)/;
         this.fileFind = /^\s*\.(?:cv_)?file\s+(\d+)\s+"([^"]+)"(\s+"([^"]+)")?.*/;
         // Opcode expression here matches LLVM-style opcodes of the form `%blah = opcode`
         this.hasOpcodeRe = /^\s*(%[$.A-Z_a-z][\w$.]*\s*=\s*)?[A-Za-z]/;
@@ -333,7 +333,7 @@ export class AsmParser extends AsmRegex {
         }
 
         const asm: ParsedAsmResultLine[] = [];
-        const labelDefinitions: Map<string, number> = new Map<string, number>();
+        const labelDefinitions: Record<string, number> = {};
 
         let asmLines = utils.splitLines(asmResult);
         const startingLineCount = asmLines.length;
@@ -598,7 +598,7 @@ export class AsmParser extends AsmRegex {
     processBinaryAsm(asmResult, filters): ParsedAsmResult {
         const startTime = process.hrtime.bigint();
         const asm: ParsedAsmResultLine[] = [];
-        const labelDefinitions: Map<string, number> = new Map<string, number>();
+        const labelDefinitions: Record<string, number> = {};
         const dontMaskFilenames = filters.dontMaskFilenames;
 
         let asmLines = asmResult.split('\n');

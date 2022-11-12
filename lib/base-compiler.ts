@@ -82,11 +82,12 @@ export class BaseCompiler {
     public lang: Language;
     protected compileFilename: string;
     protected env: any;
+    // Note that this can also return undefined and boolean | number, but we still need properties.js to ts
     protected compilerProps: (key: string, defaultValue?: string) => string;
     protected alwaysResetLdPath: any;
     protected delayCleanupTemp: any;
     protected stubRe: RegExp;
-    protected stubText: any;
+    protected stubText: string;
     protected compilerWrapper: any;
     protected asm: IAsmParser;
     protected llvmIr: LlvmIrParser;
@@ -125,8 +126,8 @@ export class BaseCompiler {
 
         this.alwaysResetLdPath = this.env.ceProps('alwaysResetLdPath');
         this.delayCleanupTemp = this.env.ceProps('delayCleanupTemp', false);
-        this.stubRe = new RegExp(this.compilerProps('stubRe'));
-        this.stubText = this.compilerProps('stubText');
+        this.stubRe = new RegExp(this.compilerProps('stubRe', ''));
+        this.stubText = this.compilerProps('stubText', '');
         this.compilerWrapper = this.compilerProps('compiler-wrapper');
 
         if (!this.compiler.options) this.compiler.options = '';
@@ -431,10 +432,15 @@ export class BaseCompiler {
     }
 
     processExecutionResult(input: UnprocessedExecResult, inputFilename?: string): BasicExecutionResult {
+        const start = performance.now();
+        const stdout = utils.parseOutput(input.stdout, inputFilename);
+        const stderr = utils.parseOutput(input.stderr, inputFilename);
+        const end = performance.now();
         return {
             ...input,
-            stdout: utils.parseOutput(input.stdout, inputFilename),
-            stderr: utils.parseOutput(input.stderr, inputFilename),
+            stdout,
+            stderr,
+            processExecutionResultTime: end - start,
         };
     }
 
@@ -1049,12 +1055,15 @@ export class BaseCompiler {
         const execOptions = this.getDefaultExecOptions();
         execOptions.maxOutput = 1024 * 1024 * 1024;
 
+        const compileStart = performance.now();
         const output = await this.runCompiler(this.compiler.exe, newOptions, this.filename(inputFilename), execOptions);
+        const compileEnd = performance.now();
 
         if (output.timedOut) {
             return {
-                error: 'Compilation timed out',
+                error: 'Clang invocation timed out',
                 results: {},
+                clangTime: output.execTime ? output.execTime : compileEnd - compileStart,
             };
         }
 
@@ -1063,7 +1072,9 @@ export class BaseCompiler {
         }
 
         try {
+            const parseStart = performance.now();
             const llvmOptPipeline = await this.processLLVMOptPipeline(output, filters, llvmOptPipelineOptions);
+            const parseEnd = performance.now();
 
             if (llvmOptPipelineOptions.demangle) {
                 // apply demangles after parsing, would otherwise greatly complicate the parsing of the passes
@@ -1073,16 +1084,21 @@ export class BaseCompiler {
                 await demangler.collect({asm: output.stderr});
                 return {
                     results: await demangler.demangleLLVMPasses(llvmOptPipeline),
+                    clangTime: compileEnd - compileStart,
+                    parseTime: parseEnd - parseStart,
                 };
             } else {
                 return {
                     results: llvmOptPipeline,
+                    clangTime: compileEnd - compileStart,
+                    parseTime: parseEnd - parseStart,
                 };
             }
         } catch (e: any) {
             return {
                 error: e.toString(),
                 results: {},
+                clangTime: compileEnd - compileStart,
             };
         }
     }
