@@ -70,7 +70,8 @@ export class MultifileService {
 
         this.isCMakeProject = state.isCMakeProject || false;
         this.compilerLanguageId = state.compilerLanguageId || '';
-        this.files = state.files;
+        // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
+        this.files = state.files || [];
         this.newFileId = state.newFileId || 1;
 
         this.validExtraFilenameExtensions = ['.txt', '.md', '.rst', '.sh', '.cmake', '.in'];
