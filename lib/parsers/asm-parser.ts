@@ -30,12 +30,13 @@ import {
     ParsedAsmResult,
     ParsedAsmResultLine,
 } from '../../types/asmresult/asmresult.interfaces';
-import {ParseFilters} from '../../types/features/filters.interfaces';
+import {ParseFiltersAndOutputOptions} from '../../types/features/filters.interfaces';
 import * as utils from '../utils';
 
+import {IAsmParser} from './asm-parser.interfaces';
 import {AsmRegex} from './asmregex';
 
-export class AsmParser extends AsmRegex {
+export class AsmParser extends AsmRegex implements IAsmParser {
     labelFindNonMips: RegExp;
     labelFindMips: RegExp;
     mipsLabelDefinition: RegExp;
@@ -322,7 +323,7 @@ export class AsmParser extends AsmRegex {
         return labelsInLine;
     }
 
-    processAsm(asmResult, filters: ParseFilters): ParsedAsmResult {
+    processAsm(asmResult, filters: ParseFiltersAndOutputOptions): ParsedAsmResult {
         if (filters.binary) return this.processBinaryAsm(asmResult, filters);
 
         const startTime = process.hrtime.bigint();
