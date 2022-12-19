@@ -1060,7 +1060,8 @@ export class BaseCompiler implements ICompiler {
             .filter(option => option !== '-fcolor-diagnostics')
             .concat(this.compiler.llvmOptArg)
             .concat(llvmOptPipelineOptions.fullModule ? this.compiler.llvmOptModuleScopeArg : [])
-            .concat(llvmOptPipelineOptions.noDiscardValueNames ? this.compiler.llvmOptNoDiscardValueNamesArg : []);
+            .concat(llvmOptPipelineOptions.noDiscardValueNames ? this.compiler.llvmOptNoDiscardValueNamesArg : [])
+            .concat(this.compiler.debugPatched ? ['-mllvm', '--debug-to-stdout'] : []);
 
         const execOptions = this.getDefaultExecOptions();
         execOptions.maxOutput = 1024 * 1024 * 1024;
@@ -1083,7 +1084,12 @@ export class BaseCompiler implements ICompiler {
 
         try {
             const parseStart = performance.now();
-            const llvmOptPipeline = await this.processLLVMOptPipeline(output, filters, llvmOptPipelineOptions);
+            const llvmOptPipeline = await this.processLLVMOptPipeline(
+                output,
+                filters,
+                llvmOptPipelineOptions,
+                this.compiler.debugPatched,
+            );
             const parseEnd = performance.now();
 
             if (llvmOptPipelineOptions.demangle) {
@@ -1091,7 +1097,11 @@ export class BaseCompiler implements ICompiler {
                 // new this.demanglerClass(this.compiler.demangler, this);
                 const demangler = new LLVMIRDemangler(this.compiler.demangler, this);
                 // collect labels off the raw input
-                await demangler.collect({asm: output.stderr});
+                if (this.compiler.debugPatched) {
+                    await demangler.collect({asm: output.stdout});
+                } else {
+                    await demangler.collect({asm: output.stderr});
+                }
                 return {
                     results: await demangler.demangleLLVMPasses(llvmOptPipeline),
                     clangTime: compileEnd - compileStart,
@@ -1117,8 +1127,13 @@ export class BaseCompiler implements ICompiler {
         output,
         filters: ParseFiltersAndOutputOptions,
         llvmOptPipelineOptions: LLVMOptPipelineBackendOptions,
+        debugPatched?: boolean,
     ) {
-        return this.llvmPassDumpParser.process(output.stderr, filters, llvmOptPipelineOptions);
+        return this.llvmPassDumpParser.process(
+            debugPatched ? output.stdout : output.stderr,
+            filters,
+            llvmOptPipelineOptions,
+        );
     }
 
     getRustMacroExpansionOutputFilename(inputFilename) {
@@ -1562,8 +1577,17 @@ export class BaseCompiler implements ICompiler {
         const source = key.source;
         const dirPath = await this.newTempDir();
         const outputFilename = this.getExecutableFilename(dirPath, this.outputFilebase);
+
+        // cant use this.writeAllFiles here because outputFilename is used as the file to execute
+        //  instead of inputFilename
+
         await fs.writeFile(outputFilename, source);
+        if (key.files && key.files.length > 0) {
+            await this.writeMultipleFiles(key.files, dirPath);
+        }
+
         executeParameters.args.unshift(outputFilename);
+
         const result = await this.runExecutable(this.compiler.exe, executeParameters, dirPath);
         return {
             ...result,
@@ -2300,6 +2324,8 @@ export class BaseCompiler implements ICompiler {
 
         if (!backendOptions.skipPopArgs) result.popularArguments = this.possibleArguments.getPopularArguments(options);
 
+        result = this.postCompilationPreCacheHook(result);
+
         if (result.okToCache) {
             await this.env.cachePut(key, result);
         }
@@ -2311,6 +2337,10 @@ export class BaseCompiler implements ICompiler {
                 this.doTempfolderCleanup(result.execResult.buildResult);
             }
         }
+        return result;
+    }
+
+    postCompilationPreCacheHook(result: CompilationResult): CompilationResult {
         return result;
     }
 
