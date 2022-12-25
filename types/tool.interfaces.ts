@@ -22,7 +22,47 @@
 // ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 // POSSIBILITY OF SUCH DAMAGE.
 
-export interface ToolInputViewState {
-    toolId: string;
-    toolName: string;
-}
+import {LanguageKey} from './languages.interfaces';
+import {ResultLine} from './resultline/resultline.interfaces';
+
+export type ToolTypeKey = 'independent' | 'postcompilation';
+
+export type ToolInfo = {
+    id: string;
+    name?: string;
+    type?: ToolTypeKey;
+    exe: string;
+    exclude: string[];
+    includeKey?: string;
+    options: string[];
+    args?: string;
+    languageId?: LanguageKey;
+    stdinHint?: string;
+    monacoStdin?: string;
+    icon?: string;
+    darkIcon?: string;
+    compilerLanguage: LanguageKey;
+};
+
+export type Tool = {
+    readonly tool: ToolInfo;
+    readonly id: string;
+    readonly type: string;
+};
+
+export type Artifact = {
+    content: string;
+    type: string;
+    name: string;
+    title: string;
+};
+
+export type ToolResult = {
+    id: string;
+    name?: string;
+    code: number;
+    languageId?: LanguageKey | 'stderr';
+    stderr: ResultLine[];
+    stdout: ResultLine[];
+    artifact?: Artifact;
+};

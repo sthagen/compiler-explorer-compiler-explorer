@@ -52,6 +52,7 @@ import {CompilerOutputOptions, ParseFiltersAndOutputOptions} from '../types/feat
 import {Language} from '../types/languages.interfaces';
 import {Library, LibraryVersion, SelectedLibraryVersion} from '../types/libraries/libraries.interfaces';
 import {ResultLine} from '../types/resultline/resultline.interfaces';
+import {Tool, ToolResult, ToolTypeKey} from '../types/tool.interfaces';
 
 import {BuildEnvSetupBase, getBuildEnvTypeByKey} from './buildenvsetup';
 import {BuildEnvDownloadInfo} from './buildenvsetup/buildenv.interfaces';
@@ -76,7 +77,7 @@ import {IAsmParser} from './parsers/asm-parser.interfaces';
 import {LlvmPassDumpParser} from './parsers/llvm-pass-dump-parser';
 import {PropertyGetter} from './properties.interfaces';
 import {getToolchainPath} from './toolchain-utils';
-import {Tool, ToolResult, ToolTypeKey} from './tooling/base-tool.interface';
+import {ITool} from './tooling/base-tool.interface';
 import * as utils from './utils';
 
 export class BaseCompiler implements ICompiler {
@@ -96,7 +97,7 @@ export class BaseCompiler implements ICompiler {
     protected llvmAst: LlvmAstParser;
     protected toolchainPath: any;
     public possibleArguments: CompilerArguments;
-    protected possibleTools: Tool[];
+    protected possibleTools: ITool[];
     protected demanglerClass: any;
     protected objdumperClass: any;
     public outputFilebase: string;
@@ -147,7 +148,7 @@ export class BaseCompiler implements ICompiler {
         this.toolchainPath = getToolchainPath(this.compiler.exe, this.compiler.options);
 
         this.possibleArguments = new CompilerArguments(this.compiler.id);
-        this.possibleTools = _.values(compilerInfo.tools);
+        this.possibleTools = _.values(compilerInfo.tools) as ITool[];
         const demanglerExe = this.compiler.demangler;
         if (demanglerExe && this.compiler.demanglerType) {
             this.demanglerClass = getDemanglerTypeByKey(this.compiler.demanglerType);
@@ -1361,7 +1362,7 @@ export class BaseCompiler implements ICompiler {
         if (tools) {
             for (const tool of tools) {
                 const matches = this.possibleTools.find(possibleTool => {
-                    return possibleTool.getId() === tool.id && possibleTool.getType() === type;
+                    return possibleTool.id === tool.id && possibleTool.type === type;
                 });
 
                 if (matches) {
@@ -2386,7 +2387,7 @@ export class BaseCompiler implements ICompiler {
         return output;
     }
 
-    couldSupportASTDump(version) {
+    couldSupportASTDump(version: string) {
         const versionRegex = /version (\d+.\d+)/;
         const versionMatch = versionRegex.exec(version);
 
@@ -2398,7 +2399,7 @@ export class BaseCompiler implements ICompiler {
         return false;
     }
 
-    isCfgCompiler(compilerVersion) {
+    isCfgCompiler(compilerVersion: string) {
         return compilerVersion.includes('clang') || compilerVersion.match(/^([\w-]*-)?g((\+\+)|(cc)|(dc))/g) !== null;
     }
 

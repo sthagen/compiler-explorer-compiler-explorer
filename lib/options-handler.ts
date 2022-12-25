@@ -30,13 +30,13 @@ import semverParser from 'semver';
 import _ from 'underscore';
 
 import {LanguageKey} from '../types/languages.interfaces';
+import {ToolTypeKey} from '../types/tool.interfaces';
 
 import {logger} from './logger';
 import {CompilerProps} from './properties';
 import {PropertyGetter, PropertyValue} from './properties.interfaces';
 import {Source} from './sources';
 import {BaseTool, getToolTypeByKey} from './tooling';
-import {ToolTypeKey} from './tooling/base-tool.interface';
 import {asSafeVer, getHash, splitArguments, splitIntoArray} from './utils';
 
 // TODO: There is surely a better name for this type. Used both here and in the compiler finder.
