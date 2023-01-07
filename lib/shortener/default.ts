@@ -1,4 +1,4 @@
-// Copyright (c) 2022, Compiler Explorer Authors
+// Copyright (c) 2018, Compiler Explorer Authors
 // All rights reserved.
 //
 // Redistribution and use in source and binary forms, with or without
@@ -22,46 +22,16 @@
 // ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 // POSSIBILITY OF SUCH DAMAGE.
 
-import * as fs from 'fs';
+import * as express from 'express';
 
-import {SiteTemplatesType} from '../../types/features/site-templates.interfaces';
+import {BaseShortener} from './base';
 
-const siteTemplates: SiteTemplatesType = {
-    meta: {},
-    templates: {},
-};
-
-function splitProperty(line: string) {
-    return [line.substring(0, line.indexOf('=')), line.substring(line.indexOf('=') + 1)];
-}
-
-function partition<T>(array: T[], filter: (value: T) => boolean): [T[], T[]] {
-    const pass: T[] = [],
-        fail: T[] = [];
-    for (const item of array) {
-        if (filter(item)) {
-            pass.push(item);
-        } else {
-            fail.push(item);
-        }
+export class DefaultShortener extends BaseShortener {
+    override handle(req: express.Request, res: express.Response) {
+        return this.storageHandler.handler(req, res);
     }
-    return [pass, fail];
-}
 
-export function loadSiteTemplates(configDir: string) {
-    const [meta, templates] = partition(
-        fs
-            .readFileSync(configDir + '/site-templates.conf', 'utf8')
-            .split('\n')
-            .filter(l => l !== '')
-            .map(splitProperty)
-            .map(pair => [pair[0], pair[1].replace(/^https:\/\/godbolt.org\/#/, '')]),
-        ([name, _]) => name.startsWith('meta.'),
-    );
-    siteTemplates.meta = Object.fromEntries(meta);
-    siteTemplates.templates = Object.fromEntries(templates);
-}
-
-export function getSiteTemplates() {
-    return siteTemplates;
+    static override get key() {
+        return 'default';
+    }
 }
