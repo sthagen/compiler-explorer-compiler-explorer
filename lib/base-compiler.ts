@@ -137,8 +137,11 @@ export class BaseCompiler implements ICompiler {
         if (!this.compiler.supportsOptOutput) this.compiler.supportsOptOutput = false;
 
         if (!this.compiler.disabledFilters) this.compiler.disabledFilters = [];
-        else if (typeof this.compiler.disabledFilters === 'string')
-            this.compiler.disabledFilters = this.compiler.disabledFilters.split(',');
+        else if (typeof (this.compiler.disabledFilters as any) === 'string') {
+            // When first loaded from props it may be a string so we split it here
+            // I'd like a better way to do this that doesn't involve type hacks
+            this.compiler.disabledFilters = (this.compiler.disabledFilters as any).split(',');
+        }
 
         this.asm = new AsmParser(this.compilerProps);
         this.llvmIr = new LlvmIrParser(this.compilerProps);
@@ -1590,6 +1593,10 @@ export class BaseCompiler implements ICompiler {
         return this.execBinary(executable, maxExecOutputSize, executeParameters, homeDir);
     }
 
+    protected fixExecuteParametersForInterpreting(executeParameters, outputFilename, key) {
+        executeParameters.args.unshift(outputFilename);
+    }
+
     async handleInterpreting(key, executeParameters): Promise<CompilationResult> {
         const source = key.source;
         const dirPath = await this.newTempDir();
@@ -1603,7 +1610,7 @@ export class BaseCompiler implements ICompiler {
             await this.writeMultipleFiles(key.files, dirPath);
         }
 
-        executeParameters.args.unshift(outputFilename);
+        this.fixExecuteParametersForInterpreting(executeParameters, outputFilename, key);
 
         const result = await this.runExecutable(this.compiler.exe, executeParameters, dirPath);
         return {
@@ -1816,7 +1823,7 @@ export class BaseCompiler implements ICompiler {
             : '';
 
         asmResult.dirPath = dirPath;
-        asmResult.compilationOptions = options;
+        if (!asmResult.compilationOptions) asmResult.compilationOptions = options;
         asmResult.downloads = downloads;
         // Here before the check to ensure dump reports even on failure cases
         if (this.compiler.supportsGccDump && gccDumpResult) {
