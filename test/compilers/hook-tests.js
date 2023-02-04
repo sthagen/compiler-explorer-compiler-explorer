@@ -23,16 +23,18 @@
 // POSSIBILITY OF SUCH DAMAGE.
 
 import {HookCompiler} from '../../lib/compilers';
-import {chai, makeCompilationEnvironment} from '../utils';
-
-const expect = chai.expect;
+import {makeCompilationEnvironment} from '../utils';
 
 describe('Hook compiler', () => {
     it('should return correct key', () => {
         HookCompiler.key.should.equal('hook');
     });
 
-    const info = {remote: true, lang: 'hook'};
+    const info = {
+        exe: '/opt/hook/bin/hook',
+        remote: true,
+        lang: 'hook',
+    };
     const languages = {hook: {id: 'hook'}};
     const hook = new HookCompiler(info, makeCompilationEnvironment({languages}));
 
@@ -43,6 +45,11 @@ describe('Hook compiler', () => {
     it('should return correct output filename', () => {
         const dirPath = '/tmp';
         hook.getOutputFilename(dirPath).should.equal('/tmp/example.out');
+    });
+
+    it('should correctly add hook_home to the env', () => {
+        hook.addHookHome(undefined).should.deep.equal({HOOK_HOME: '/opt/hook'});
+        hook.addHookHome({moo: 'moo'}).should.deep.equal({moo: 'moo', HOOK_HOME: '/opt/hook'});
     });
 
     it('should process and return correct bytecode result', () => {
