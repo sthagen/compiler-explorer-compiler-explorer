@@ -1,4 +1,4 @@
-// Copyright (c) 2022, Compiler Explorer Authors
+// Copyright (c) 2023, Compiler Explorer Authors
 // All rights reserved.
 //
 // Redistribution and use in source and binary forms, with or without
@@ -22,57 +22,26 @@
 // ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 // POSSIBILITY OF SUCH DAMAGE.
 
-import {LanguageKey} from './languages.interfaces';
-import {ResultLine} from './resultline/resultline.interfaces';
+import {PropertyGetter} from '../lib/properties.interfaces';
 
-export type ToolTypeKey = 'independent' | 'postcompilation';
-
-export type ToolInfo = {
-    id: string;
-    name?: string;
-    type?: ToolTypeKey;
-    exe: string;
-    exclude: string[];
-    includeKey?: string;
-    options: string[];
-    args?: string;
-    languageId?: LanguageKey;
-    stdinHint?: string;
-    monacoStdin?: string;
-    icon?: string;
-    darkIcon?: string;
-    compilerLanguage: LanguageKey;
+export type Specifically = {
+    arg: string;
+    timesused: number;
+};
+export type Argument = {
+    description: string;
+    timesused: number;
+    specifically?: Specifically[];
 };
 
-export type Tool = {
-    readonly tool: ToolInfo;
-    readonly id: string;
-    readonly type: string;
-};
+export type PossibleArguments = Record<string, Argument>;
 
-export enum ArtifactType {
-    download = 'application/octet-stream',
-    nesrom = 'nesrom',
-    bbcdiskimage = 'bbcdiskimage',
-    zxtape = 'zxtape',
-    smsrom = 'smsrom',
+export interface ICompilerArguments {
+    getPopularArguments(excludeUsedArguments?: string[]): PossibleArguments;
+
+    getOptimizationArguments(excludeUsedArguments?: string[]): PossibleArguments;
+
+    populateOptions(options: PossibleArguments): void;
+
+    loadFromStorage(awsProps: PropertyGetter): Promise<void>;
 }
-
-export type Artifact = {
-    content: string;
-    type: string;
-    name: string;
-    title: string;
-};
-
-export type ToolResult = {
-    id: string;
-    name?: string;
-    code: number;
-    languageId?: LanguageKey | 'stderr';
-    stderr: ResultLine[];
-    stdout: ResultLine[];
-    artifact?: Artifact;
-    sourcechanged?: boolean;
-    newsource?: string;
-};

@@ -1,4 +1,4 @@
-// Copyright (c) 2022, Compiler Explorer Authors
+// Copyright (c) 2018, 2021, Microsoft Corporation & Compiler Explorer Authors
 // All rights reserved.
 //
 // Redistribution and use in source and binary forms, with or without
@@ -22,57 +22,27 @@
 // ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 // POSSIBILITY OF SUCH DAMAGE.
 
-import {LanguageKey} from './languages.interfaces';
-import {ResultLine} from './resultline/resultline.interfaces';
+import {logger} from '../logger';
+import {PropertyGetter} from '../properties.interfaces';
+import * as utils from '../utils';
 
-export type ToolTypeKey = 'independent' | 'postcompilation';
+import {AsmParser} from './asm-parser';
+import {VcAsmParser} from './asm-parser-vc';
+import {AsmRegex} from './asmregex';
 
-export type ToolInfo = {
-    id: string;
-    name?: string;
-    type?: ToolTypeKey;
-    exe: string;
-    exclude: string[];
-    includeKey?: string;
-    options: string[];
-    args?: string;
-    languageId?: LanguageKey;
-    stdinHint?: string;
-    monacoStdin?: string;
-    icon?: string;
-    darkIcon?: string;
-    compilerLanguage: LanguageKey;
-};
+export class Vc6AsmParser extends VcAsmParser {
+    constructor(compilerProps?: PropertyGetter) {
+        super(compilerProps);
+        this.miscDirective =
+            /^\s*(include|INCLUDELIB|TITLE|\.|else$|endif$|if @Version|FLAT|ASSUME|THUMB|ARM64|TTL|END$)/;
+        this.beginSegment =
+            /^(CONST|_BSS|_DATA|_TLS|\.?[prx]?data(\$[A-Za-z]+)?|CRT(\$[A-Za-z]+)?|_TEXT|\.?text(\$[A-Za-z]+)?)\s+SEGMENT|\s*AREA/;
+        this.endSegment =
+            /^(CONST|_BSS|_DATA|_TLS|[prx]?data(\$[A-Za-z]+)?|CRT(\$[A-Za-z]+)?|_TEXT|text(\$[A-Za-z]+)?)\s+ENDS/;
+    }
 
-export type Tool = {
-    readonly tool: ToolInfo;
-    readonly id: string;
-    readonly type: string;
-};
-
-export enum ArtifactType {
-    download = 'application/octet-stream',
-    nesrom = 'nesrom',
-    bbcdiskimage = 'bbcdiskimage',
-    zxtape = 'zxtape',
-    smsrom = 'smsrom',
+    // NB processAsm previously used `definesFunction` to "checkBeginFunction". The base class uses `beginFunction`
+    // All tests pass with both using definesFunction, so I don't want to introduce complexity unnecessarily, and so
+    // will leave this behaviour. If this breaks our downstream friends, we can reinstate (with tests to prevent it
+    // happening again).
 }
-
-export type Artifact = {
-    content: string;
-    type: string;
-    name: string;
-    title: string;
-};
-
-export type ToolResult = {
-    id: string;
-    name?: string;
-    code: number;
-    languageId?: LanguageKey | 'stderr';
-    stderr: ResultLine[];
-    stdout: ResultLine[];
-    artifact?: Artifact;
-    sourcechanged?: boolean;
-    newsource?: string;
-};
