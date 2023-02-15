@@ -1,4 +1,4 @@
-// Copyright (c) 2018, Compiler Explorer Authors
+// Copyright (c) 2023, Compiler Explorer Authors
 // All rights reserved.
 //
 // Redistribution and use in source and binary forms, with or without
@@ -22,23 +22,23 @@
 // ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 // POSSIBILITY OF SUCH DAMAGE.
 
-import fs from 'fs-extra';
+import {UnprocessedExecResult} from '../../types/execution/execution.interfaces';
 
 import {BaseTool} from './base-tool';
 
-export class PaholeTool extends BaseTool {
+export class RustFmtTool extends BaseTool {
     static get key() {
-        return 'pahole-tool';
+        return 'rustfmt-tool';
     }
 
-    async runTool(compilationInfo, inputFilepath, args) {
-        if (!compilationInfo.filters.binary && !compilationInfo.filters.binaryObject) {
-            return this.createErrorResponse('Pahole requires a binary output');
-        }
-
-        if (await fs.pathExists(compilationInfo.executableFilename)) {
-            return super.runTool(compilationInfo, compilationInfo.executableFilename, args);
-        }
-        return super.runTool(compilationInfo, compilationInfo.outputFilename, args);
+    override convertResult(result: UnprocessedExecResult, inputFilepath?: string, exeDir?: string) {
+        // Rustfmt outputs files to stdout with the format
+        // <source>
+        //
+        // { formatted code }
+        // To get the correct right piece of code we want to remove the
+        // first two lines
+        result.stdout = result.stdout.split('\n').slice(2).join('\n');
+        return super.convertResult(result, inputFilepath, exeDir);
     }
 }

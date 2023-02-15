@@ -1,4 +1,4 @@
-// Copyright (c) 2022, Compiler Explorer Authors
+// Copyright (c) 2023, Compiler Explorer Authors
 // All rights reserved.
 //
 // Redistribution and use in source and binary forms, with or without
@@ -22,7 +22,34 @@
 // ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 // POSSIBILITY OF SUCH DAMAGE.
 
-require('./frontend-testing');
-require('./hello-world');
-require('./motd');
-// require('./ui');
+import fs from 'fs-extra';
+
+import {BaseTool} from './base-tool';
+
+export class LLVMMcaTool extends BaseTool {
+    static get key() {
+        return 'llvm-mca-tool';
+    }
+
+    rewriteAsm(asm: string) {
+        return asm
+            .replace(/.hword\s/gim, '.short ')
+            .replace(/offset flat:/gim, '')
+            .replace(/ptr\s%fs/gim, 'PTR fs')
+            .replace(/^\s*\.(fnstart|eabi_attribute|fpu).*/gim, ''); // https://github.com/compiler-explorer/compiler-explorer/issues/1270
+    }
+
+    writeAsmFile(data: string, destination: string) {
+        return fs.writeFile(destination, this.rewriteAsm(data));
+    }
+
+    override async runTool(compilationInfo: Record<any, any>, inputFilepath?: string, args?: string[]) {
+        if (compilationInfo.filters.binary) {
+            return this.createErrorResponse('<cannot run analysis on binary>');
+        }
+
+        const rewrittenOutputFilename = compilationInfo.outputFilename + '.mca';
+        await this.writeAsmFile(compilationInfo.asm, rewrittenOutputFilename);
+        return super.runTool(compilationInfo, rewrittenOutputFilename, args);
+    }
+}

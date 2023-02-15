@@ -1,4 +1,4 @@
-// Copyright (c) 2019, Compiler Explorer Authors
+// Copyright (c) 2023, Compiler Explorer Authors
 // All rights reserved.
 //
 // Redistribution and use in source and binary forms, with or without
@@ -22,24 +22,6 @@
 // ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 // POSSIBILITY OF SUCH DAMAGE.
 
-import {fileExists} from '../utils';
-
-import {BaseTool} from './base-tool';
-
-export class ReadElfTool extends BaseTool {
-    static get key() {
-        return 'readelf-tool';
-    }
-
-    async runTool(compilationInfo, inputFilename, args) {
-        if (!compilationInfo.filters.binary && !compilationInfo.filters.binaryObject) {
-            return this.createErrorResponse('readelf requires an executable');
-        }
-
-        if (await fileExists(compilationInfo.executableFilename)) {
-            return super.runTool(compilationInfo, compilationInfo.executableFilename, args);
-        } else {
-            return super.runTool(compilationInfo, compilationInfo.outputFilename, args);
-        }
-    }
-}
+import './frontend-testing';
+import './hello-world';
+import './motd';

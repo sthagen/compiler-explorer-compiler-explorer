@@ -1,4 +1,4 @@
-// Copyright (c) 2020, Compiler Explorer Authors
+// Copyright (c) 2023, Compiler Explorer Authors
 // All rights reserved.
 //
 // Redistribution and use in source and binary forms, with or without
@@ -22,39 +22,10 @@
 // ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 // POSSIBILITY OF SUCH DAMAGE.
 
-import fs from 'fs-extra';
-
 import {BaseTool} from './base-tool';
 
-export class OSACATool extends BaseTool {
+export class TestingTool extends BaseTool {
     static get key() {
-        return 'osaca-tool';
-    }
-
-    async writeAsmFile(asmParser, asm, filters, destination) {
-        // Applying same filters as applied to compiler outpu
-        const filteredAsm = asmParser.process(asm, filters).asm.reduce(function (acc, line) {
-            return acc + line.text + '\n';
-        }, '');
-        return fs.writeFile(destination, filteredAsm);
-    }
-
-    async runTool(compilationInfo, inputFilepath, args) {
-        if (compilationInfo.filters.binary) {
-            return this.createErrorResponse('<cannot run analysis on binary>');
-        }
-
-        if (compilationInfo.filters.intel) {
-            return this.createErrorResponse('<cannot run analysis on Intel assembly>');
-        }
-
-        const rewrittenOutputFilename = compilationInfo.outputFilename + '.osaca';
-        await this.writeAsmFile(
-            compilationInfo.asmParser,
-            compilationInfo.asm,
-            compilationInfo.filters,
-            rewrittenOutputFilename,
-        );
-        return super.runTool(compilationInfo, rewrittenOutputFilename, args);
+        return 'testing-tool';
     }
 }

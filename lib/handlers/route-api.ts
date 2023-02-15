@@ -22,10 +22,13 @@
 // ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 // POSSIBILITY OF SUCH DAMAGE.
 
+import * as Sentry from '@sentry/node';
 import express from 'express';
 
+import {assert, unwrap} from '../assert';
 import {ClientState} from '../clientstate';
 import {ClientStateGoldenifier, ClientStateNormalizer} from '../clientstate-normalizer';
+import {isString} from '../common-utils';
 import {logger} from '../logger';
 import {StorageBase} from '../storage';
 import * as utils from '../utils';
@@ -106,6 +109,8 @@ export class RouteAPI {
             })
             .catch(err => {
                 logger.debug(`Exception thrown when expanding ${id}: `, err);
+                logger.warn('Exception value:', err);
+                Sentry.captureException(err);
                 next({
                     statusCode: 404,
                     message: `ID "${id}/${sessionid}" could not be found`,
@@ -158,7 +163,9 @@ export class RouteAPI {
     simpleLayoutHandler(req: express.Request, res: express.Response) {
         const state = new ClientState();
         const session = state.findOrCreateSession(1);
-        session.lang = req.query.lang;
+        assert(isString(req.query.lang));
+        session.language = req.query.lang;
+        assert(isString(req.query.code));
         session.source = req.query.code;
         const compiler = session.findOrCreateCompiler(1);
         compiler.id = req.query.compiler;
@@ -193,7 +200,8 @@ export class RouteAPI {
             })
             .catch(err => {
                 logger.warn(`Exception thrown when expanding ${id}`);
-                logger.debug('Exception value:', err);
+                logger.warn('Exception value:', err);
+                Sentry.captureException(err);
                 next({
                     statusCode: 404,
                     message: `ID "${id}" could not be found`,
@@ -246,7 +254,7 @@ export class RouteAPI {
 
                     if (tree.isCMakeProject) {
                         const firstSource = tree.files.find(file => {
-                            return file.filename.startsWith('CMakeLists.txt');
+                            return unwrap(file.filename).startsWith('CMakeLists.txt');
                         });
 
                         if (firstSource) {
@@ -254,7 +262,7 @@ export class RouteAPI {
                         }
                     } else {
                         const firstSource = tree.files.find(file => {
-                            return file.filename.startsWith('example.');
+                            return unwrap(file.filename).startsWith('example.');
                         });
 
                         if (firstSource) {

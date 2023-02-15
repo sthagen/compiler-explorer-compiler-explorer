@@ -1,4 +1,4 @@
-// Copyright (c) 2021, Compiler Explorer Authors
+// Copyright (c) 2023, Compiler Explorer Authors
 // All rights reserved.
 //
 // Redistribution and use in source and binary forms, with or without
@@ -22,21 +22,23 @@
 // ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 // POSSIBILITY OF SUCH DAMAGE.
 
+import {fileExists} from '../utils';
+
 import {BaseTool} from './base-tool';
 
-export class RustFmtTool extends BaseTool {
+export class StringsTool extends BaseTool {
     static get key() {
-        return 'rustfmt-tool';
+        return 'strings-tool';
     }
 
-    convertResult(result, inputFilepath, exeDir) {
-        // Rustfmt outputs files to stdout with the format
-        // <source>
-        //
-        // { formatted code }
-        // To get the correct right piece of code we want to remove the
-        // first two lines
-        result.stdout = result.stdout.split('\n').slice(2).join('\n');
-        return super.convertResult(result, inputFilepath, exeDir);
+    override async runTool(compilationInfo: Record<any, any>, inputFilepath?: string, args?: string[]) {
+        if (!compilationInfo.filters.binary) {
+            return this.createErrorResponse('Strings requires a binary output');
+        }
+        if (await fileExists(compilationInfo.executableFilename)) {
+            return super.runTool(compilationInfo, compilationInfo.executableFilename, args);
+        } else {
+            return super.runTool(compilationInfo, compilationInfo.outputFilename, args);
+        }
     }
 }
