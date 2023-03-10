@@ -77,7 +77,7 @@ import {AsmParser} from './parsers/asm-parser.js';
 import type {IAsmParser} from './parsers/asm-parser.interfaces.js';
 import {LlvmPassDumpParser} from './parsers/llvm-pass-dump-parser.js';
 import type {PropertyGetter} from './properties.interfaces.js';
-import {getToolchainPath} from './toolchain-utils.js';
+import {getToolchainPath, removeToolchainArg} from './toolchain-utils.js';
 import type {ITool} from './tooling/base-tool.interface.js';
 import * as utils from './utils.js';
 import {unwrap} from './assert.js';
@@ -334,7 +334,7 @@ export class BaseCompiler implements ICompiler {
         const key = this.getCompilerCacheKey(compiler, args, options);
         let result = await this.env.compilerCacheGet(key as any);
         if (!result) {
-            result = await this.env.enqueue(async () => await exec.execute(compiler, args, options), true);
+            result = await this.env.enqueue(async () => await exec.execute(compiler, args, options));
             if (result.okToCache) {
                 this.env
                     .compilerCachePut(key as any, result, undefined)
@@ -1978,7 +1978,14 @@ export class BaseCompiler implements ICompiler {
         const cmakeExecParams = Object.assign({}, execParams);
 
         const libIncludes = this.getIncludeArguments(libsAndOptions.libraries);
-        const options = libsAndOptions.options.concat(libIncludes);
+
+        const options: string[] = [];
+        if (this.compiler.options) {
+            const compilerOptions = utils.splitArguments(this.compiler.options);
+            options.push(...removeToolchainArg(compilerOptions));
+        }
+        options.push(...libsAndOptions.options);
+        options.push(...libIncludes);
 
         _.extend(cmakeExecParams.env, this.getCompilerEnvironmentVariables(options.join(' ')));
 
