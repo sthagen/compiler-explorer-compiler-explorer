@@ -22,24 +22,14 @@
 // ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 // POSSIBILITY OF SUCH DAMAGE.
 
-import type {ConfiguredOverrides} from '../../types/compilation/compiler-overrides.interfaces.js';
-import type {ConfiguredRuntimeTools} from '../../types/execution/execution.interfaces.js';
-import type {WidgetState} from '../widgets/libs-widget.interfaces.js';
+import {AssemblyInstructionInfo, BaseAssemblyDocumentationProvider} from './base.js';
+import {getAsmOpcode} from './generated/asm-docs-riscv64.js';
 
-export type ExecutorState = WidgetState & {
-    tree?: number;
-    source?: number;
-    execArgs?: string;
-    execStdin?: string;
-    options?: string;
-    filters?: Record<string, boolean>;
-    compilationPanelShown?: boolean;
-    argsPanelShown?: boolean;
-    stdinPanelShown?: boolean;
-    compilerOutShown?: boolean;
-    wrap?: boolean;
-    lang?: string;
-    compiler: string;
-    overrides?: ConfiguredOverrides;
-    runtimeTools?: ConfiguredRuntimeTools;
-};
+export class Riscv64DocumentationProvider extends BaseAssemblyDocumentationProvider {
+    public static get key() {
+        return 'riscv64';
+    }
+    public override getInstructionInformation(instruction: string): AssemblyInstructionInfo | null {
+        return getAsmOpcode(instruction) || null;
+    }
+}
