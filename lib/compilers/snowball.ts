@@ -38,7 +38,7 @@ export class SnowballCompiler extends BaseCompiler {
 
     constructor(info: PreliminaryCompilerInfo, env) {
         super(info, env);
-        this.compiler.supportsIntel = false;
+        this.compiler.supportsIntel = true;
         this.compiler.supportsIrView = true;
         this.compiler.supportsLLVMOptPipelineView = true;
         this.compiler.supportsCfg = true;
@@ -76,15 +76,14 @@ export class SnowballCompiler extends BaseCompiler {
 
         const userRequestedEmit = _.any(unwrap(userOptions), opt => opt.includes('--emit'));
         if (filters.binary) {
-            options = options.concat(['--emit', 'exec']);
+            options = options.concat(['--emit', 'exe']);
         } else if (filters.binaryObject) {
-            options = options.concat(['--emit', 'lib']);
+            options = options.concat(['--emit', 'obj']);
         } else {
             if (!userRequestedEmit) {
                 options = options.concat('--emit', 'asm');
             }
-            // TODO:
-            // if (filters.intel) options = options.concat('--llvm-args', '--x86-asm-syntax=intel');
+            if (filters.intel) options = options.concat('--x86-asm-syntax=intel');
         }
         return options;
     }
