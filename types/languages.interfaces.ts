@@ -25,6 +25,8 @@
 export type LanguageKey =
     | 'ada'
     | 'analysis'
+    | 'android-java'
+    | 'android-kotlin'
     | 'assembly'
     | 'c'
     | 'c++'
@@ -34,6 +36,7 @@ export type LanguageKey =
     | 'circt'
     | 'clean'
     | 'cmake'
+    | 'cmakescript'
     | 'cobol'
     | 'cpp_for_opencl'
     | 'cppx'
