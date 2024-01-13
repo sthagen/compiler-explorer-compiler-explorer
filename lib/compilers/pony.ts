@@ -37,15 +37,15 @@ export class PonyCompiler extends BaseCompiler {
         return 'pony';
     }
 
-    /* constructor(info: any, env: any) {
+    constructor(info: any, env: any) {
         super(info, env);
 
         this.compiler.supportsIrView = true;
         this.compiler.irArg = ['--pass', 'ir'];
-    } */
+    }
 
     override optionsForFilter(filters: ParseFiltersAndOutputOptions, outputFilename: any, userOptions?: any): string[] {
-        let options = ['-d', '-b', path.parse(outputFilename).name];
+        let options = ['-b', path.parse(outputFilename).name];
 
         if (!filters.binary) {
             options = options.concat(['--pass', 'asm']);
@@ -70,9 +70,9 @@ export class PonyCompiler extends BaseCompiler {
         produceCfg: boolean,
         filters: ParseFiltersAndOutputOptions,
     ) {
-        const newOptions = _.filter(options, option => !['--pass', 'asm'].includes(option)).concat(
-            unwrap(this.compiler.irArg),
-        );
+        const newOptions = _.filter(options, option => !['--pass', 'asm', '-b', this.outputFilebase].includes(option))
+            .concat(unwrap(this.compiler.irArg))
+            .concat(['-b', path.parse(inputFilename).name]);
 
         const execOptions = this.getDefaultExecOptions();
         // A higher max output is needed for when the user includes headers
