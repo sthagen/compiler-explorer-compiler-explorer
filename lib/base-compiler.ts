@@ -71,6 +71,7 @@ import {
     UnprocessedExecResult,
 } from '../types/execution/execution.interfaces.js';
 import type {CompilerOutputOptions, ParseFiltersAndOutputOptions} from '../types/features/filters.interfaces.js';
+import {InstructionSet} from '../types/instructionsets.js';
 import type {Language} from '../types/languages.interfaces.js';
 import type {Library, LibraryVersion, SelectedLibraryVersion} from '../types/libraries/libraries.interfaces.js';
 import type {ResultLine} from '../types/resultline/resultline.interfaces.js';
@@ -270,16 +271,16 @@ export class BaseCompiler implements ICompiler {
         if (!this.compiler.instructionSet) {
             const isets = new InstructionSets();
             if (this.buildenvsetup) {
-                isets
-                    .getCompilerInstructionSetHint(this.buildenvsetup.compilerArch, this.compiler.exe)
-                    .then(res => (this.compiler.instructionSet = res))
-                    .catch(() => {});
+                this.compiler.instructionSet = isets.getCompilerInstructionSetHint(
+                    this.buildenvsetup.compilerArch,
+                    this.compiler.exe,
+                );
             } else {
                 const temp = new BuildEnvSetupBase(this.compiler, this.env);
-                isets
-                    .getCompilerInstructionSetHint(temp.compilerArch, this.compiler.exe)
-                    .then(res => (this.compiler.instructionSet = res))
-                    .catch(() => {});
+                this.compiler.instructionSet = isets.getCompilerInstructionSetHint(
+                    temp.compilerArch,
+                    this.compiler.exe,
+                );
             }
         }
 
@@ -474,6 +475,63 @@ export class BaseCompiler implements ICompiler {
         return undefined;
     }
 
+    getTargetHintFromCompilerArgs(args: string[]): string | undefined {
+        const allFlags = this.getAllPossibleTargetFlags();
+
+        if (allFlags.length > 0) {
+            for (const possibleFlag of allFlags) {
+                // possible.flags contains either something like ['--target', '<value>'] or ['--target=<value>'], we want the flags without <value>
+                const filteredFlags: string[] = [];
+                let targetFlagOffset = -1;
+                for (const [i, flag] of possibleFlag.entries()) {
+                    if (flag.includes(c_value_placeholder)) {
+                        filteredFlags.push(flag.replace(c_value_placeholder, ''));
+                        targetFlagOffset = i;
+                    } else {
+                        filteredFlags.push(flag);
+                    }
+                }
+
+                if (targetFlagOffset === -1) continue;
+
+                // try to find matching flags in args
+                let foundFlag = -1;
+                for (const arg of args) {
+                    if (arg.startsWith(filteredFlags[foundFlag + 1])) {
+                        foundFlag = foundFlag + 1;
+                    }
+
+                    if (foundFlag === targetFlagOffset) {
+                        if (arg.length > filteredFlags[foundFlag].length) {
+                            return arg.substring(filteredFlags[foundFlag].length);
+                        }
+                        return arg;
+                    }
+                }
+            }
+        }
+
+        return undefined;
+    }
+
+    getInstructionSetFromCompilerArgs(args: string[]): InstructionSet {
+        try {
+            const archHint = this.getTargetHintFromCompilerArgs(args);
+            if (archHint) {
+                const isets = new InstructionSets();
+                return isets.getCompilerInstructionSetHint(archHint, this.compiler.exe);
+            }
+        } catch (e) {
+            logger.debug('Unexpected error in getInstructionSetFromCompilerArgs(): ', e);
+        }
+
+        if (this.compiler.instructionSet) {
+            return this.compiler.instructionSet;
+        } else {
+            return 'amd64';
+        }
+    }
+
     async runCompiler(
         compiler: string,
         options: string[],
@@ -493,6 +551,7 @@ export class BaseCompiler implements ICompiler {
         return {
             ...this.transformToCompilationResult(result, inputFilename),
             languageId: this.getCompilerResultLanguageId(filters),
+            instructionSet: this.getInstructionSetFromCompilerArgs(options),
         };
     }
 
@@ -1213,14 +1272,6 @@ export class BaseCompiler implements ICompiler {
             libPathsAsFlags = this.getSharedLibraryPathsAsArguments(libraries, undefined, toolchainPath, dirPath);
             libPaths = this.getSharedLibraryPaths(libraries, dirPath);
             staticLibLinks = (this.getStaticLibraryLinks(libraries, libPaths).filter(Boolean) as string[]) || [];
-        }
-        if (!filters.binary && !filters.execute) {
-            // `-l*` switches might be used in a later invocation of prepareArguments, but now they just cause warnings.
-            // If need ever arises to customize this per-compiler - extract to a method
-            const linkFlag = this.compiler.linkFlag || '-l';
-            userOptions = userOptions.filter((opt, i, arr) => {
-                return !opt.startsWith(linkFlag) && arr[i - 1] !== linkFlag;
-            });
         }
 
         userOptions = this.filterUserOptions(userOptions) || [];
@@ -3483,6 +3534,15 @@ but nothing was dumped. Possible causes are:
         if (this.compiler.supportsTarget) return ['--target', c_value_placeholder];
 
         return [];
+    }
+
+    getAllPossibleTargetFlags(): string[][] {
+        const all: string[][] = [];
+        if (this.compiler.supportsMarch) all.push([`-march=${c_value_placeholder}`]);
+        if (this.compiler.supportsTargetIs) all.push([`--target=${c_value_placeholder}`]);
+        if (this.compiler.supportsTarget) all.push(['--target', c_value_placeholder]);
+
+        return all;
     }
 
     async getPossibleToolchains(): Promise<CompilerOverrideOptions> {
