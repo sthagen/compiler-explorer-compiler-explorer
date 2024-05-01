@@ -189,10 +189,7 @@ export class Dex2OatCompiler extends BaseCompiler {
             throw new Error('Generated dex file not found');
         }
 
-        let tmpDir = d8DirPath;
-        if (this.sandboxType === 'nsjail') {
-            tmpDir = '/app';
-        }
+        const tmpDir = d8DirPath;
 
         const profileAndResult = await this.generateProfile(inputFilename, tmpDir, dexFile);
         if (profileAndResult && profileAndResult.result.code !== 0) {
