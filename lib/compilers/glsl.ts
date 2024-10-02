@@ -1,4 +1,4 @@
-// Copyright (c) 2022, Compiler Explorer Authors
+// Copyright (c) 2024, Compiler Explorer Authors
 // All rights reserved.
 //
 // Redistribution and use in source and binary forms, with or without
@@ -24,28 +24,26 @@
 
 import path from 'path';
 
-import type {ExecutionOptionsWithEnv} from '../../types/compilation/compilation.interfaces.js';
-import type {PreliminaryCompilerInfo} from '../../types/compiler.interfaces.js';
+import type {ExecutionOptions} from '../../types/compilation/compilation.interfaces.js';
 import type {ParseFiltersAndOutputOptions} from '../../types/features/filters.interfaces.js';
 import {BaseCompiler} from '../base-compiler.js';
-import {CompilationEnvironment} from '../compilation-env.js';
 import {logger} from '../logger.js';
 import {SPIRVAsmParser} from '../parsers/asm-parser-spirv.js';
 import * as utils from '../utils.js';
 
-export class CLSPVCompiler extends BaseCompiler {
-    disassemblerPath: any;
+export class GLSLCompiler extends BaseCompiler {
+    protected disassemblerPath: string;
 
     static get key() {
-        return 'clspv';
+        return 'glsl';
     }
 
-    constructor(compilerInfo: PreliminaryCompilerInfo, env: CompilationEnvironment) {
-        super(compilerInfo, env);
+    constructor(info: any, env: any) {
+        super(info, env);
 
         this.asm = new SPIRVAsmParser(this.compilerProps);
 
-        this.disassemblerPath = this.compilerProps('disassemblerPath');
+        this.disassemblerPath = this.compilerProps<string>('disassemblerPath');
     }
 
     getPrimaryOutputFilename(dirPath: string, outputFilebase: string) {
@@ -55,10 +53,10 @@ export class CLSPVCompiler extends BaseCompiler {
     override optionsForFilter(filters: ParseFiltersAndOutputOptions, outputFilename: string) {
         const sourceDir = path.dirname(outputFilename);
         const spvBinFilename = this.getPrimaryOutputFilename(sourceDir, this.outputFilebase);
-        return ['-o', spvBinFilename, '-g'];
+        return ['-o', spvBinFilename, '-g']; // -g provides debug info
     }
 
-    // TODO: Check this to see if it needs key
+    // TODO: Check this to see if it needs key (same in clspv)
     override getOutputFilename(dirPath: string, outputFilebase: string) {
         return path.join(dirPath, `${outputFilebase}.spvasm`);
     }
@@ -67,7 +65,7 @@ export class CLSPVCompiler extends BaseCompiler {
         compiler: string,
         options: string[],
         inputFilename: string,
-        execOptions: ExecutionOptionsWithEnv,
+        execOptions: ExecutionOptions & {env: Record<string, string>},
     ) {
         const sourceDir = path.dirname(inputFilename);
         const spvBinFilename = this.getPrimaryOutputFilename(sourceDir, this.outputFilebase);
