@@ -37,7 +37,7 @@ import {Hub} from '../hub.js';
 import {Container} from 'golden-layout';
 import {MonacoPaneState} from './pane.interfaces.js';
 import {CompilerService} from '../compiler-service.js';
-import {ComponentConfig, PopulatedToolInputViewState} from '../components.interfaces.js';
+import {ComponentConfig, PopulatedToolInputViewState, ToolState} from '../components.interfaces.js';
 import {unwrap, unwrapString} from '../assert.js';
 import {CompilationResult} from '../compilation/compilation.interfaces.js';
 import {CompilerInfo} from '../compiler.interfaces.js';
@@ -183,7 +183,7 @@ export class Tool extends MonacoPane<monaco.editor.IStandaloneCodeEditor, ToolSt
     onLanguageChange(editorId: number | boolean, newLangId: LanguageKey) {
         if (this.compilerInfo.editorId && this.compilerInfo.editorId === editorId) {
             const tools = ceoptions.tools[newLangId];
-            this.toggleUsable(!!tools && !!tools[this.toolId]);
+            this.toggleUsable(!!tools[this.toolId]);
         }
     }
 
@@ -368,7 +368,7 @@ export class Tool extends MonacoPane<monaco.editor.IStandaloneCodeEditor, ToolSt
             monacoEditorHasBeenAutoOpened: this.monacoEditorHasBeenAutoOpened,
             argsPanelShown: !this.panelArgs.hasClass('d-none'),
         };
-        return state as MonacoPaneState;
+        return state;
     }
 
     setLanguage(languageId: false | string) {
