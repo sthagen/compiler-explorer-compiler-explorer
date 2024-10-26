@@ -33,6 +33,7 @@ import {CompilerInfo} from '../compiler.interfaces.js';
 import {BasicExecutionResult, ConfiguredRuntimeTools} from '../execution/execution.interfaces.js';
 import {ParseFiltersAndOutputOptions} from '../features/filters.interfaces.js';
 import {InstructionSet} from '../instructionsets.js';
+import {SelectedLibraryVersion} from '../libraries/libraries.interfaces.js';
 import {ResultLine} from '../resultline/resultline.interfaces.js';
 import {Artifact, ToolResult} from '../tool.interfaces.js';
 
@@ -41,10 +42,16 @@ import {ConfiguredOverrides} from './compiler-overrides.interfaces.js';
 import {LLVMIrBackendOptions} from './ir.interfaces.js';
 import {OptPipelineBackendOptions, OptPipelineOutput} from './opt-pipeline-output.interfaces.js';
 
-export type ActiveTools = {
-    id: number;
+export type ActiveTool = {
+    id: string;
     args: string[];
     stdin: string;
+};
+
+export type UnparsedExecutionParams = {
+    args?: string | string[];
+    stdin?: string;
+    runtimeTools?: ConfiguredRuntimeTools;
 };
 
 export type ExecutionParams = {
@@ -53,13 +60,8 @@ export type ExecutionParams = {
     runtimeTools?: ConfiguredRuntimeTools;
 };
 
-export type CompileChildLibraries = {
-    id: string;
-    version: string;
-};
-
 export type LibsAndOptions = {
-    libraries: CompileChildLibraries[];
+    libraries: SelectedLibraryVersion[];
     options: string[];
 };
 
@@ -113,10 +115,10 @@ export type CompilationRequestOptions = {
         customOutputFilename?: string;
         overrides?: ConfiguredOverrides;
     };
-    executeParameters: ExecutionParams;
+    executeParameters: UnparsedExecutionParams;
     filters: ParseFiltersAndOutputOptions;
-    tools: ActiveTools[];
-    libraries: CompileChildLibraries[];
+    tools: ActiveTool[];
+    libraries: SelectedLibraryVersion[];
 };
 
 // Carefully chosen for backwards compatibility
@@ -157,7 +159,8 @@ export type CompilationResult = {
     buildResult?: BuildResult;
     buildsteps?: BuildStep[];
     inputFilename?: string;
-    asm?: ResultLine[];
+    // Temp hack until we get all code to agree on type of asm
+    asm?: ResultLine[] | string;
     asmSize?: number;
     devices?: Record<string, CompilationResult>;
     stdout: ResultLine[];
@@ -213,7 +216,7 @@ export type CompilationResult = {
     retreivedFromCache?: boolean;
     retreivedFromCacheTime?: number;
     packageDownloadAndUnzipTime?: number;
-    execTime?: number | string;
+    execTime?: number;
     processExecutionResultTime?: number;
     objdumpTime?: number;
     parsingTime?: number;
@@ -251,40 +254,25 @@ export type BuildResult = CompilationResult & {
     code: number;
 };
 
+export type Arch = 'x86' | 'x86_64' | null;
+
 export type BuildStep = BasicExecutionResult & {
     compilationOptions: string[];
     step: string;
 };
 
-export type CompilationInfo = CompilationResult & {
-    mtime: Date | null;
-    compiler: CompilerInfo & Record<string, unknown>;
-    args: string[];
-    options: ExecutionOptions;
-    outputFilename: string;
-    executableFilename: string;
-    asmParser: IAsmParser;
-    inputFilename?: string;
-    dirPath?: string;
-};
-
-export type CustomInputForTool = {
-    inputFilename: string;
-    dirPath: string;
-    outputFilename: string;
-};
-
-export type CompilationInfo2 = CustomInputForTool & {
-    mtime: Date | null;
-    compiler: CompilerInfo & Record<string, unknown>;
-    args: string[];
-    options: ExecutionOptions;
-    outputFilename: string;
-    executableFilename: string;
-    asmParser: IAsmParser;
-    inputFilename?: string;
-    dirPath?: string;
-};
+export type CompilationInfo = CacheKey &
+    CompilationResult & {
+        mtime: Date | null;
+        compiler: CompilerInfo & Record<string, unknown>;
+        args: string[];
+        options: string[];
+        outputFilename: string;
+        executableFilename: string;
+        asmParser: IAsmParser;
+        inputFilename?: string;
+        dirPath?: string;
+    };
 
 export type CompilationCacheKey = {
     mtime: any;
@@ -300,7 +288,7 @@ export type SingleFileCacheKey = {
     backendOptions: any;
     filters?: any;
     tools: any[];
-    libraries: any[];
+    libraries: SelectedLibraryVersion[];
     files: any[];
 };
 
