@@ -50,7 +50,7 @@ export type ActiveTool = {
 };
 
 export type UnparsedExecutionParams = {
-    args?: string[];
+    args?: string | string[];
     stdin?: string;
     runtimeTools?: ConfiguredRuntimeTools;
 };
