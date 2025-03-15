@@ -26,9 +26,9 @@ import path from 'node:path';
 
 import type {CompilationInfo} from '../../types/compilation/compilation.interfaces.js';
 import type {ResultLine} from '../../types/resultline/resultline.interfaces.js';
+import {assert} from '../assert.js';
 import type {OptionsHandlerLibrary} from '../options-handler.js';
-import * as temp from '../temp.js';
-import {ce_temp_prefix, parseRustOutput} from '../utils.js';
+import {parseRustOutput} from '../utils.js';
 
 import {BaseTool} from './base-tool.js';
 
@@ -41,10 +41,6 @@ export class ClippyTool extends BaseTool {
         return path.format({dir: path.dirname(compilationInfo.compiler.exe), base: 'clippy-driver'});
     }
 
-    override async getCustomCwd(inputFilepath: string): Promise<string> {
-        return await temp.mkdir(ce_temp_prefix);
-    }
-
     override async runTool(
         compilationInfo: CompilationInfo,
         inputFilepath?: string,
@@ -52,8 +48,16 @@ export class ClippyTool extends BaseTool {
         stdin?: string,
         supportedLibraries?: Record<string, OptionsHandlerLibrary>,
     ) {
-        const clippyArgs = ['--color=always', ...(args || [])];
-        return await super.runTool(compilationInfo, inputFilepath, clippyArgs, stdin, supportedLibraries);
+        assert(inputFilepath);
+        const clippyArgs = [...(args || []), ...(compilationInfo.compilationOptions || [])];
+        const idxOutput = clippyArgs.findIndex(arg => arg === '-o');
+        if (idxOutput !== -1 && idxOutput + 1 < clippyArgs.length) {
+            clippyArgs[idxOutput + 1] = path.join(
+                path.dirname(inputFilepath),
+                '__compiler_explorer_clippy_output_unused',
+            );
+        }
+        return await super.runTool(compilationInfo, inputFilepath, clippyArgs, stdin, supportedLibraries, true);
     }
 
     override parseOutput(lines: string, inputFilename?: string, pathPrefix?: string): ResultLine[] {
