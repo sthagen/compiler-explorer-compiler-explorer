@@ -52,7 +52,7 @@ import systemdSocket from 'systemd-socket';
 import _ from 'underscore';
 import urljoin from 'url-join';
 
-import {unwrap} from './lib/assert.js';
+import {setBaseDirectory, unwrap} from './lib/assert.js';
 import * as aws from './lib/aws.js';
 import * as normalizer from './lib/clientstate-normalizer.js';
 import {GoldenLayoutRootStruct} from './lib/clientstate-normalizer.js';
@@ -89,8 +89,7 @@ import {ElementType} from './shared/common-utils.js';
 import {CompilerInfo} from './types/compiler.interfaces.js';
 import type {Language, LanguageKey} from './types/languages.interfaces.js';
 
-// Used by assert.ts
-global.ce_base_directory = new URL('.', import.meta.url);
+setBaseDirectory(new URL('.', import.meta.url));
 
 (nopt as any).invalidHandler = (key: string, val: unknown, types: unknown[]) => {
     logger.error(
@@ -549,6 +548,7 @@ async function main() {
         defArgs.doCache,
     );
     const compileHandler = new CompileHandler(compilationEnvironment, awsProps);
+    compilationEnvironment.setCompilerFinder(compileHandler.findCompiler.bind(compileHandler));
     const storageType = getStorageTypeByKey(storageSolution);
     const storageHandler = new storageType(httpRoot, compilerProps, awsProps);
     const compilerFinder = new CompilerFinder(compileHandler, compilerProps, defArgs, clientOptionsHandler);
@@ -615,8 +615,7 @@ async function main() {
         process.exit(0);
     }
 
-    // Exported to allow compilers to refer to other existing compilers.
-    global.handler_config = {
+    const handler_config = {
         compileHandler,
         clientOptionsHandler,
         storageHandler,
@@ -628,8 +627,8 @@ async function main() {
         renderGoldenLayout,
     };
 
-    const noscriptHandler = new NoScriptHandler(router, global.handler_config);
-    const routeApi = new RouteAPI(router, global.handler_config);
+    const noscriptHandler = new NoScriptHandler(router, handler_config);
+    const routeApi = new RouteAPI(router, handler_config);
 
     async function onCompilerChange(compilers: CompilerInfo[]) {
         if (JSON.stringify(prevCompilers) === JSON.stringify(compilers)) {
