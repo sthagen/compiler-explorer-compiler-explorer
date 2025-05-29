@@ -27,13 +27,15 @@ import path from 'node:path';
 import _ from 'underscore';
 
 import {splitArguments} from '../../shared/common-utils.js';
-import type {CacheKey, ExecutionOptions} from '../../types/compilation/compilation.interfaces.js';
+import type {BuildResult, CacheKey, ExecutionOptions} from '../../types/compilation/compilation.interfaces.js';
 import type {ConfiguredOverrides} from '../../types/compilation/compiler-overrides.interfaces.js';
 import type {PreliminaryCompilerInfo} from '../../types/compiler.interfaces.js';
+import {UnprocessedExecResult} from '../../types/execution/execution.interfaces.js';
 import type {ParseFiltersAndOutputOptions} from '../../types/features/filters.interfaces.js';
 import {SelectedLibraryVersion} from '../../types/libraries/libraries.interfaces.js';
 import {unwrap} from '../assert.js';
 import {BaseCompiler} from '../base-compiler.js';
+import {copyNeededDlls} from '../binaries/win-utils.js';
 import {CompilationEnvironment} from '../compilation-env.js';
 import {MapFileReaderVS} from '../mapfiles/map-file-vs.js';
 import {AsmParser} from '../parsers/asm-parser.js';
@@ -216,7 +218,7 @@ export class Win32Compiler extends BaseCompiler {
         return this.asm.process(result.asm, filters);
     }
 
-    override exec(compiler: string, args: string[], options_: ExecutionOptions) {
+    override async exec(compiler: string, args: string[], options_: ExecutionOptions): Promise<UnprocessedExecResult> {
         const options = Object.assign({}, options_);
         options.env = Object.assign({}, options.env);
 
@@ -231,5 +233,24 @@ export class Win32Compiler extends BaseCompiler {
         }
 
         return super.exec(compiler, args, options);
+    }
+
+    override async buildExecutableInFolder(key: CacheKey, dirPath: string): Promise<BuildResult> {
+        const result = await super.buildExecutableInFolder(key, dirPath);
+
+        if (result.code === 0) {
+            const execOptions = this.getDefaultExecOptions();
+            execOptions.customCwd = dirPath;
+
+            await copyNeededDlls(
+                dirPath,
+                result.executableFilename,
+                this.exec.bind(this),
+                this.compiler.objdumper,
+                execOptions,
+            );
+        }
+
+        return result;
     }
 }
