@@ -68,13 +68,53 @@ export function SetupSentry() {
                 /this.error\(new CancellationError\(\)/,
                 /new StandardMouseEvent\(monaco-editor/,
                 /Object Not Found Matching Id:2/,
-                /i is null _doHitTestWithCaretPositionFromPoint/,
                 /Illegal value for lineNumber/,
                 'SlowRequest',
             ],
+            beforeSend(event, hint) {
+                // Filter Monaco Editor errors
+                // NOTE: When debugging filters, check the actual JSON structure from Sentry UI
+                // - event.exception.values[0].value contains the error message
+                // - event.exception.values[0].type contains the error type
+                // - Sentry UI shows "type: value" but actual JSON has separate fields
+                // - frames[0] is often Sentry's wrapper, not the original error source
+                if (event.exception?.values?.[0]?.stacktrace?.frames) {
+                    const frames = event.exception.values[0].stacktrace.frames;
+
+                    // Filter hit testing errors
+                    // See: https://github.com/microsoft/monaco-editor/issues/4527
+                    // NOTE: Function name appears in error message, not as frame.function due to Sentry wrapping
+                    if (event.exception.values[0].value?.includes('_doHitTestWithCaretPositionFromPoint')) {
+                        return null; // Don't send to Sentry
+                    }
+
+                    // Filter clipboard cancellation errors
+                    // NOTE: Frame filename matching works as expected for file path filtering
+                    const hasClipboardFrame = frames.some(frame =>
+                        frame.filename?.includes('monaco-editor/esm/vs/platform/clipboard/browser/clipboardService.js'),
+                    );
+                    // NOTE: Error value may be "Canceled" or "Canceled\nSentryCapture Context: ..." due to context addition
+                    const isCancellationError = event.exception.values[0].value?.startsWith('Canceled');
+
+                    if (hasClipboardFrame && isCancellationError) {
+                        return null; // Don't send to Sentry
+                    }
+                }
+                return event;
+            },
         });
         window.addEventListener('unhandledrejection', event => {
-            SentryCapture(event.reason, 'Unhandled Promise Rejection');
+            // Convert non-Error rejection reasons to Error objects
+            let reason = event.reason;
+            if (!(reason instanceof Error)) {
+                const errorMessage =
+                    typeof reason === 'string' ? reason : `Non-Error rejection: ${JSON.stringify(reason)}`;
+                reason = new Error(errorMessage);
+
+                // Preserve original reason for debugging
+                (reason as any).originalReason = event.reason;
+            }
+            SentryCapture(reason, 'Unhandled Promise Rejection');
         });
     }
 }

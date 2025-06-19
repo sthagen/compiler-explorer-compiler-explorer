@@ -1,4 +1,4 @@
-// Copyright (c) 2025, Compiler Explorer Authors
+// Copyright (c) 2021, Compiler Explorer Authors
 // All rights reserved.
 //
 // Redistribution and use in source and binary forms, with or without
@@ -22,21 +22,4 @@
 // ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 // POSSIBILITY OF SUCH DAMAGE.
 
-// These .pug files are different from the ones on the server. Our webpack
-// config will translate the .pug files into JS objects that are importable
-// with `hash` and `text` properties.
-//
-// See the code in `/etc/scripts/parsed-pug/parsed_pug_file.js` for details.
-declare module '*.pug' {
-    type WebpackBuiltPugFile = {
-        hash: string;
-        text: string;
-    };
-    declare const content: WebpackBuiltPugFile;
-    export default content;
-}
-
-declare module 'lodash.clonedeep' {
-    const cloneDeep: <T>(value: T) => T;
-    export = cloneDeep;
-}
+export type AssemblyInstructionInfo = Record<'tooltip' | 'html' | 'url', string>;
