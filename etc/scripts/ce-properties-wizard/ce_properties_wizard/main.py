@@ -93,6 +93,7 @@ def format_compiler_options(options_input: str) -> str:
 )
 @click.option("--env", default="local", help="Environment to target (local, amazon, etc.)")
 @click.option("--debug", is_flag=True, help="Enable debug output including subprocess commands")
+@click.option("--sdk-path", help="Windows SDK base path for MSVC compilers (e.g., D:/efs/compilers/windows-kits-10)")
 def cli(
     compiler_path: Optional[str],
     compiler_id: Optional[str],
@@ -109,6 +110,7 @@ def cli(
     validate_discovery: bool,
     env: str,
     debug: bool,
+    sdk_path: Optional[str],
 ):
     """CE Properties Wizard - Add compilers to your Compiler Explorer installation.
 
@@ -119,6 +121,10 @@ def cli(
         ce-props-wizard --env amazon /usr/bin/g++   # Target amazon environment
         ce-props-wizard --list-types                 # List all supported compiler types
         ce-props-wizard /usr/bin/g++ --verify-only  # Just detect compiler info
+
+    MSVC Examples:
+        ce-props-wizard "D:/efs/compilers/msvc-2022/VC/Tools/MSVC/14.34.31933/bin/Hostx64/x64/cl.exe"
+        ce-props-wizard "C:/MSVC/cl.exe" --sdk-path "C:/WindowsKits/10" --non-interactive
     """
     # Handle --list-types flag
     if list_types:
@@ -308,12 +314,18 @@ def cli(
             click.echo(f"  Suggested Group: {detected_info.group or 'none'}")
             sys.exit(0)
 
-        # Interactive prompts for missing information
-        if not yes and not non_interactive:
-            questions = []
-            
-            # Windows SDK path prompt for MSVC compilers if auto-detection failed
-            if detected_info.needs_sdk_prompt:
+        # Handle Windows SDK path for MSVC compilers
+        if detected_info.needs_sdk_prompt:
+            if sdk_path:
+                # Use command-line provided SDK path
+                if os.path.isdir(sdk_path.replace("\\", "/")):
+                    detected_info = detector.set_windows_sdk_path(detected_info, sdk_path)
+                    print_success(f"Windows SDK paths added from: {sdk_path}")
+                else:
+                    print_error(f"Invalid SDK path: {sdk_path}")
+                    sys.exit(1)
+            elif not yes and not non_interactive:
+                # Interactive prompt for SDK path
                 print_info("Windows SDK auto-detection failed. You can optionally specify the Windows SDK path.")
                 print_info("Example: Z:/compilers/windows-kits-10 (leave empty to skip)")
                 sdk_question = inquirer.Text(
@@ -327,6 +339,10 @@ def cli(
                     # Apply the user-provided SDK path
                     detected_info = detector.set_windows_sdk_path(detected_info, sdk_answers["windows_sdk_path"].strip())
                     print_success(f"Windows SDK paths added from: {sdk_answers['windows_sdk_path']}")
+
+        # Interactive prompts for missing information
+        if not yes and not non_interactive:
+            questions = []
 
             # Language selection if needed
             if not language and detected_info.language:
