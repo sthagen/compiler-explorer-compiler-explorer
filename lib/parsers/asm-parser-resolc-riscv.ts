@@ -1,4 +1,4 @@
-// Copyright (c) 2017, Compiler Explorer Authors
+// Copyright (c) 2025, Compiler Explorer Authors
 // All rights reserved.
 //
 // Redistribution and use in source and binary forms, with or without
@@ -22,44 +22,14 @@
 // ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 // POSSIBILITY OF SUCH DAMAGE.
 
-import path from 'node:path';
+import {PropertyGetter} from '../properties.interfaces.js';
+import {AsmParser} from './asm-parser.js';
 
-import type {PreliminaryCompilerInfo} from '../../types/compiler.interfaces.js';
-import {BaseCompiler} from '../base-compiler.js';
-import {CompilationEnvironment} from '../compilation-env.js';
+export class ResolcRiscVAsmParser extends AsmParser {
+    constructor(compilerProps?: PropertyGetter) {
+        super(compilerProps);
 
-import {SwiftParser} from './argument-parsers.js';
-
-export class SwiftCompiler extends BaseCompiler {
-    static get key() {
-        return 'swift';
-    }
-
-    constructor(info: PreliminaryCompilerInfo, env: CompilationEnvironment) {
-        super(info, env);
-        this.compiler.supportsIrView = true;
-        this.compiler.irArg = ['-emit-ir'];
-        this.compiler.minIrArgs = ['-emit-ir'];
-        this.compiler.optPipeline = {
-            arg: ['-Xllvm', '-print-after-all', '-Xllvm', '-print-before-all'],
-            moduleScopeArg: ['-Xllvm', '-print-module-scope'],
-            noDiscardValueNamesArg: [],
-        };
-    }
-
-    override getSharedLibraryPathsAsArguments() {
-        return [];
-    }
-
-    override getArgumentParserClass() {
-        return SwiftParser;
-    }
-
-    override isCfgCompiler() {
-        return true;
-    }
-
-    override getIrOutputFilename(inputFilename: string): string {
-        return this.getOutputFilename(path.dirname(inputFilename), this.outputFilebase).replace('.o', '.ll');
+        // Example: "; artifacts/_var_folders_fj_1p_1d_T_compiler-explorer-compilerJzYPPi_example.yul.Square.yul:1"
+        this.lineRe = /^;\s+(?<file>\S+):(?<line>\d+)$/;
     }
 }
