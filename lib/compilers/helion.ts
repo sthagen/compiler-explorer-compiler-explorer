@@ -1,4 +1,4 @@
-// Copyright (c) 2022, Compiler Explorer Authors
+// Copyright (c) 2025, Compiler Explorer Authors
 // All rights reserved.
 //
 // Redistribution and use in source and binary forms, with or without
@@ -22,30 +22,34 @@
 // ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 // POSSIBILITY OF SUCH DAMAGE.
 
-// note that these variables are saved to state, so don't change, only add to it
-export enum DiffType {
-    ASM = 0,
-    CompilerStdOut = 1,
-    CompilerStdErr = 2,
-    ExecStdOut = 3,
-    ExecStdErr = 4,
-    GNAT_ExpandedCode = 5,
-    GNAT_Tree = 6,
-    DeviceView = 7,
-    AstOutput = 8,
-    IrOutput = 9,
-    RustMirOutput = 10,
-    RustMacroExpOutput = 11,
-    RustHirOutput = 12,
-    ClojureMacroExpOutput = 13,
-    YulOutput = 14,
-}
+import type {PreliminaryCompilerInfo} from '../../types/compiler.interfaces.js';
+import type {ParseFiltersAndOutputOptions} from '../../types/features/filters.interfaces.js';
+import {BaseCompiler} from '../base-compiler.js';
+import {CompilationEnvironment} from '../compilation-env.js';
+import {resolvePathFromAppRoot} from '../utils.js';
 
-export type DiffState = {
-    lhs: number | string;
-    rhs: number | string;
-    lhsdifftype: DiffType;
-    rhsdifftype: DiffType;
-    lhsextraoption?: string;
-    rhsextraoption?: string;
-};
+import {BaseParser} from './argument-parsers.js';
+
+export class HelionCompiler extends BaseCompiler {
+    private compilerWrapperPath: string;
+
+    static get key() {
+        return 'helion';
+    }
+
+    constructor(compilerInfo: PreliminaryCompilerInfo, env: CompilationEnvironment) {
+        super(compilerInfo, env);
+        this.compilerWrapperPath =
+            this.compilerProps('compilerWrapper', '') || resolvePathFromAppRoot('etc', 'scripts', 'helion_wrapper.py');
+        // We are producing Triton code as the primary output; use default asm parser handling
+    }
+
+    override optionsForFilter(filters: ParseFiltersAndOutputOptions, outputFilename: string): string[] {
+        // Wrapper contract: python -I helion_wrapper.py --outputfile <file> --inputfile <src>
+        return ['-I', this.compilerWrapperPath, '--outputfile', outputFilename, '--inputfile'];
+    }
+
+    override getArgumentParserClass() {
+        return BaseParser;
+    }
+}
