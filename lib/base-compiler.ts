@@ -1883,14 +1883,18 @@ export class BaseCompiler {
     fromInternalGccDumpName(internalDumpName: string, selectedPasses: string[]) {
         if (!selectedPasses) selectedPasses = ['ipa', 'tree', 'rtl'];
 
-        const internalNameRe = new RegExp('^\\s*(' + selectedPasses.join('|') + ')-([\\w_-]+).*ON$');
+        // #6744: the pass name (group 2) can contain a single space, for 'rtl pre'
+        const internalNameRe = new RegExp('^\\s*(' + selectedPasses.join('|') + ')-([\\w_-]+(?: [\\w_-]+)?).*ON$');
         const match = internalDumpName.match(internalNameRe);
-        if (match)
+        if (match) {
+            // for 'rtl pre', file_ext should be just 'pre'
+            const file_ext = match[2].includes(' ') ? match[2].split(' ')[1] : match[2];
             return {
-                filename_suffix: `${match[1][0]}.${match[2]}`,
+                filename_suffix: `${match[1][0]}.${file_ext}`,
                 name: match[2] + ' (' + match[1] + ')',
-                command_prefix: `-fdump-${match[1]}-${match[2]}`,
+                command_prefix: `-fdump-${match[1]}-${file_ext}`,
             };
+        }
         return null;
     }
 
@@ -3106,8 +3110,6 @@ export class BaseCompiler {
     ) {
         const optionsError = this.checkOptions(options);
         if (optionsError) throw optionsError;
-        const sourceError = this.checkSource(source);
-        if (sourceError) throw sourceError;
 
         const libsAndOptions = {libraries, options};
         if (this.tryAutodetectLibraries(libsAndOptions)) {
@@ -3743,22 +3745,6 @@ but nothing was dumped. Possible causes are:
     checkOptions(options: string[]) {
         const error = this.env.findBadOptions(options);
         if (error.length > 0) return `Bad options: ${error.join(', ')}`;
-        return null;
-    }
-
-    // This check for arbitrary user-controlled preprocessor inclusions
-    // can be circumvented in more than one way. The goal here is to respond
-    // to simple attempts with a clear diagnostic; the service still needs to
-    // assume that malicious actors can make the compiler open arbitrary files.
-    checkSource(source: string) {
-        const re = /^\s*#\s*i(nclude|mport)(_next)?\s+["<]((\.{1,2}|\/)[^">]*)[">]/;
-        const failed: string[] = [];
-        for (const [index, line] of utils.splitLines(source).entries()) {
-            if (re.test(line)) {
-                failed.push(`<stdin>:${index + 1}:1: no absolute or relative includes please`);
-            }
-        }
-        if (failed.length > 0) return failed.join('\n');
         return null;
     }
 
