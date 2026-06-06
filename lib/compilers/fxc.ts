@@ -1,4 +1,4 @@
-// Copyright (c) 2022, Compiler Explorer Authors
+// Copyright (c) 2026, Compiler Explorer Authors
 // All rights reserved.
 //
 // Redistribution and use in source and binary forms, with or without
@@ -22,61 +22,31 @@
 // ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 // POSSIBILITY OF SUCH DAMAGE.
 
-import {LanguageKey} from './languages.interfaces.js';
-import {ResultLine} from './resultline/resultline.interfaces.js';
+import type {ParseFiltersAndOutputOptions} from '../../types/features/filters.interfaces.js';
+import {BaseCompiler} from '../base-compiler.js';
 
-export type ToolTypeKey = 'independent' | 'postcompilation';
+// FXC is Microsoft's legacy Direct3D (D3DCompiler) HLSL shader compiler. It produces DX bytecode
+// rather than DXIL, and does not understand DXC-specific flags such as -Qembed_debug, so it cannot
+// share HLSLCompiler's optionsForFilter.
+export class FXCCompiler extends BaseCompiler {
+    static get key() {
+        return 'fxc';
+    }
 
-export type ToolInfo = {
-    id: string;
-    name?: string;
-    type?: ToolTypeKey;
-    exe: string;
-    exclude: string[];
-    includeKey?: string;
-    options: string[];
-    args?: string;
-    languageId?: LanguageKey;
-    stdinHint?: string;
-    monacoStdin?: boolean;
-    icon?: string;
-    darkIcon?: string;
-    compilerLanguage: LanguageKey;
-};
+    constructor(info: any, env: any) {
+        super(info, env);
 
-export type Tool = {
-    readonly tool: ToolInfo;
-    readonly id: string;
-    readonly type: string;
-};
+        this.compiler.supportsIntel = false;
+    }
 
-export enum ArtifactType {
-    download = 'application/octet-stream',
-    nesrom = 'nesrom',
-    bbcdiskimage = 'bbcdiskimage',
-    zxtape = 'zxtape',
-    smsrom = 'smsrom',
-    timetrace = 'timetracejson',
-    c64prg = 'c64prg',
-    heaptracktxt = 'heaptracktxt',
-    gbrom = 'gbrom',
+    override optionsForFilter(
+        filters: ParseFiltersAndOutputOptions,
+        outputFilename: string,
+        userOptions?: string[],
+    ): string[] {
+        return [
+            '-Zi', // Embed debug information so the assembly listing carries source associations
+            `-Fc${outputFilename}`, // Output the human-readable assembly listing
+        ];
+    }
 }
-
-export type Artifact = {
-    content: string;
-    type: string;
-    name: string;
-    title: string;
-};
-
-export type ToolResult = {
-    id: string;
-    name?: string;
-    code: number;
-    languageId?: LanguageKey | 'stderr';
-    stderr: ResultLine[];
-    stdout: ResultLine[];
-    artifact?: Artifact;
-    sourcechanged?: boolean;
-    newsource?: string;
-};
