@@ -2094,7 +2094,10 @@ export class BaseCompiler {
     protected maskPathsInArgumentsForUser(args: string[]): string[] {
         const maskedArgs: string[] = [];
         for (const arg of args) {
-            maskedArgs.push(utils.maskRootdir(arg));
+            // Keep the `/app/` prefix: these are shown as the command line the compiler
+            // ran, and dropping it made the source file look relative while the compiler
+            // was given an absolute path.
+            maskedArgs.push(utils.maskRootdirKeepingAppPrefix(arg));
         }
         return maskedArgs;
     }
@@ -3119,7 +3122,7 @@ export class BaseCompiler {
         const executeOptions: ExecutableExecutionOptions = {
             args: parsedRequest.executeParameters.args || [],
             stdin: parsedRequest.executeParameters.stdin || '',
-            ldPath: this.getSharedLibraryPathsAsLdLibraryPaths(parsedRequest.libraries, dirPath),
+            ldPath: this.getSharedLibraryPathsAsLdLibraryPathsForExecution(cacheKey, dirPath),
             runtimeTools: parsedRequest.executeParameters?.runtimeTools || [],
             env: {},
         };
@@ -3632,6 +3635,8 @@ export class BaseCompiler {
             ];
         }
 
+        this.cleanupResult(result);
+
         if (result.okToCache && !delayCaching) {
             await this.env.cachePut(key, result, undefined);
         }
@@ -3644,7 +3649,6 @@ export class BaseCompiler {
             }
         }
 
-        this.cleanupResult(result);
         result.s3Key = BaseCache.hash(key);
 
         // In worker mode, store large non-cacheable results with short TTL
