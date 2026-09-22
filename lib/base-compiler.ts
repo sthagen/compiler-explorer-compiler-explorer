@@ -34,6 +34,7 @@ import {splitArguments, unique} from '../shared/common-utils.js';
 import {OptRemark} from '../static/panes/opt-view.interfaces.js';
 import {PPOptions} from '../static/panes/pp-view.interfaces.js';
 import {ParsedAsmResult, ParsedAsmResultLine} from '../types/asmresult/asmresult.interfaces.js';
+import {CacheableValue} from '../types/cache.interfaces.js';
 import {ClangirBackendOptions} from '../types/compilation/clangir.interfaces.js';
 import {
     ActiveTool,
@@ -773,42 +774,44 @@ export class BaseCompiler {
 
         // Build dump options to append to the end of the -fdump command-line flag.
         // GCC accepts these options as a list of '-' separated names that may
-        // appear in any order.
+        // appear in any order. A flag is only added when explicitly enabled: API callers can
+        // omit dumpFlags, or any of its members.
+        const dumpFlags = gccDumpOptions.dumpFlags ?? {};
         let flags = '';
-        if (gccDumpOptions.dumpFlags.gimpleFe !== false) {
+        if (dumpFlags.gimpleFe === true) {
             flags += '-gimple';
         }
-        if (gccDumpOptions.dumpFlags.address !== false) {
+        if (dumpFlags.address === true) {
             flags += '-address';
         }
-        if (gccDumpOptions.dumpFlags.alias !== false) {
+        if (dumpFlags.alias === true) {
             flags += '-alias';
         }
-        if (gccDumpOptions.dumpFlags.slim !== false) {
+        if (dumpFlags.slim === true) {
             flags += '-slim';
         }
-        if (gccDumpOptions.dumpFlags.raw !== false) {
+        if (dumpFlags.raw === true) {
             flags += '-raw';
         }
-        if (gccDumpOptions.dumpFlags.details !== false) {
+        if (dumpFlags.details === true) {
             flags += '-details';
         }
-        if (gccDumpOptions.dumpFlags.stats !== false) {
+        if (dumpFlags.stats === true) {
             flags += '-stats';
         }
-        if (gccDumpOptions.dumpFlags.blocks !== false) {
+        if (dumpFlags.blocks === true) {
             flags += '-blocks';
         }
-        if (gccDumpOptions.dumpFlags.vops !== false) {
+        if (dumpFlags.vops === true) {
             flags += '-vops';
         }
-        if (gccDumpOptions.dumpFlags.lineno !== false) {
+        if (dumpFlags.lineno === true) {
             flags += '-lineno';
         }
-        if (gccDumpOptions.dumpFlags.uid !== false) {
+        if (dumpFlags.uid === true) {
             flags += '-uid';
         }
-        if (gccDumpOptions.dumpFlags.all !== false) {
+        if (dumpFlags.all === true) {
             flags += '-all';
         }
 
@@ -2021,8 +2024,8 @@ export class BaseCompiler {
      * for origin detection, those prefixes are stripped so the dump reads as it would without
      * -lineno. RTL dumps carry extra brackets that are NOT lineno noise -- `[orig:N]`, hex operands
      * like `[0x..]`, branch probabilities like `[5.50%]` -- so the RTL strip only removes brackets
-     * that contain a path ('/'), leaving those intact. The `"file":line:col` location each insn
-     * prints keeps its `:line:col` but loses the repeated (temp-dir) filename, which is noise.
+     * that contain a path ('/'), leaving those intact. The `"file":line:col` that each insn prints
+     * is NOT a -lineno annotation (GCC emits it either way), so it is left alone.
      */
     trimGccDumpHeaderFunctions(
         content: string,
@@ -2054,10 +2057,6 @@ export class BaseCompiler {
                 // restrict the strip to brackets holding a path separator -- that keeps [orig:N] et al. while
                 // reproducing the readable no-lineno RTL dump.
                 trimmed = trimmed.replace(/\[[^[\]\n]*[/\\\\][^[\]\n]*:\d+(?::\d+)?(?: discrim \d+)?\] ?/g, '');
-                // Each insn also prints its own location as "file":line:col; the filename is the
-                // (long, temp-dir) source path repeated on every line and adds no information, so
-                // drop just the quoted path and keep the :line:col that pinskia asked to retain.
-                trimmed = trimmed.replace(/"[^"\n]*"(?=:\d)/g, '');
             } else {
                 trimmed = trimmed.replace(/\[[^[\]\n]*?:\d+(?::\d+)?(?: discrim \d+)?\] ?/g, '');
             }
@@ -3106,7 +3105,6 @@ export class BaseCompiler {
                         );
                         if (cached) {
                             cached.retreivedFromCache = true;
-                            cached.s3Key = BaseCache.hash(cacheKey);
 
                             delete cached.inputFilename;
                             delete cached.dirPath;
@@ -3397,21 +3395,9 @@ export class BaseCompiler {
         }
 
         this.cleanupResult(fullResult);
-        fullResult.s3Key = BaseCache.hash(cacheKey);
-
-        // In worker mode, store large non-cacheable results with short TTL
-        if (this.isCompilationWorker && !fullResult.result?.okToCache && fullResult) {
-            // Check if result is large enough to require S3 storage
-            const resultString = JSON.stringify(fullResult);
-            const resultSize = resultString.length;
-
-            if (resultSize > WEBSOCKET_SIZE_THRESHOLD) {
-                // Store with 1-day TTL for temporary retrieval in temp/ subdirectory
-                await this.env.tempCachePutWithTTL(cacheKey, resultString, TEMP_STORAGE_TTL_DAYS, undefined);
-                // Set s3Key with temp/ prefix to reflect storage location
-                fullResult.s3Key = `temp/${BaseCache.hash(cacheKey)}`;
-            }
-        }
+        // Never the cached copy: afterCmakeCompilation cached it before the cleanup just above, so
+        // it still names the temporary directories we mask here.
+        await this.storeOversizedResult(fullResult, cacheKey, false);
 
         return fullResult;
     }
@@ -3486,7 +3472,6 @@ export class BaseCompiler {
                 const cacheRetrieveTimeEnd = process.hrtime.bigint();
                 result.retreivedFromCacheTime = utils.deltaTimeNanoToMili(cacheRetrieveTimeStart, cacheRetrieveTimeEnd);
                 result.retreivedFromCache = true;
-                result.s3Key = BaseCache.hash(key);
                 if (doExecute) {
                     const queueTime = performance.now();
                     result.execResult = await this.env.enqueue(
@@ -3504,6 +3489,7 @@ export class BaseCompiler {
                         await this.doTempfolderCleanup(result.execResult.buildResult);
                     }
                 }
+                await this.storeOversizedResult(result, key as any, !result.execResult);
                 return result;
             }
         }
@@ -3670,23 +3656,32 @@ export class BaseCompiler {
             }
         }
 
-        result.s3Key = BaseCache.hash(key);
-
-        // In worker mode, store large non-cacheable results with short TTL
-        if (this.isCompilationWorker && !result.okToCache && !delayCaching) {
-            // Check if result is large enough to require S3 storage
-            const resultString = JSON.stringify(result);
-            const resultSize = resultString.length;
-
-            if (resultSize > WEBSOCKET_SIZE_THRESHOLD) {
-                // Store with 1-day TTL for temporary retrieval in temp/ subdirectory
-                await this.env.tempCachePutWithTTL(key, resultString, TEMP_STORAGE_TTL_DAYS, undefined);
-                // Set s3Key with temp/ prefix to reflect storage location
-                result.s3Key = `temp/${BaseCache.hash(key)}`;
-            }
-        }
+        // The cmake flow finishes the result off itself, so it stores it there rather than here.
+        // What was cached above is this result without the execResult attached since.
+        if (!delayCaching) await this.storeOversizedResult(result, key, !!result.okToCache && !result.execResult);
 
         return result;
+    }
+
+    // A result too big for the websocket is fetched from storage instead, so the worker reports
+    // where to find it. When the cache already holds this exact payload the reader is pointed at
+    // that; otherwise a copy goes under temp/, which is not a key cacheGet reads, so a result we
+    // were told not to cache can never come back as a cache hit. Callers say which case they are
+    // in, because the two flows cache at different points: see the call sites.
+    protected async storeOversizedResult(
+        result: CompilationResult,
+        key: CacheableValue,
+        cacheHoldsThisPayload: boolean,
+    ): Promise<void> {
+        if (!this.isCompilationWorker) return;
+        const resultString = JSON.stringify(result);
+        if (resultString.length <= WEBSOCKET_SIZE_THRESHOLD) return;
+        if (cacheHoldsThisPayload) {
+            if (this.env.hasSharedCache()) result.s3Key = BaseCache.hash(key);
+            return;
+        }
+        const s3Key = await this.env.tempCachePutWithTTL(key, resultString, TEMP_STORAGE_TTL_DAYS, undefined);
+        if (s3Key) result.s3Key = s3Key;
     }
 
     async afterCmakeCompilation(
@@ -3957,9 +3952,17 @@ but nothing was dumped. Possible causes are:
 
             for (const {filename, pass} of candidates) {
                 const raw = await utils.tryReadTextFile(path.join(rootDir, filename));
-                const content = raw
+                const trimmed = raw
                     ? this.trimGccDumpHeaderFunctions(raw, sourceBasename, keepLineno, pass.filename_suffix[0] === 'r')
                     : '';
+                // RTL dumps repeat the absolute path of the source, and of any other user file
+                // (multi-file compiles), on every insn location. Mask the temp dir as we do for
+                // other compiler output, so they read as /app/example.cpp rather than the scratch
+                // directory. Literal split/join, because this runs over the whole dump and
+                // TEMPDIR_RE backtracks on long input. On Windows the dir has backslashes but GCC
+                // may print either separator, so mask both spellings.
+                let content = trimmed.split(rootDir + path.sep).join('/app/');
+                if (path.sep !== '/') content = content.split(rootDir.replaceAll(path.sep, '/') + '/').join('/app/');
                 // Skip passes that produced nothing for this source (e.g. an empty ipa-clones
                 // file, or a pass whose only output was header functions we trimmed away). This
                 // is the real "remove empty GCC dumps" behaviour: keep the drop-down to passes
